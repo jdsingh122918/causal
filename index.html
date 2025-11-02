@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Causal - Real-Time Transcription</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <main class="container">
+      <h1>Causal - Real-Time Transcription</h1>
+
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab-button active" data-tab="recording">Recording</button>
+        <button class="tab-button" data-tab="summary">Summary</button>
+      </div>
+
+      <!-- Recording Tab -->
+      <div id="recording-tab" class="tab-content active">
+        <div class="transcription-controls">
+          <div class="control-group">
+            <label for="device-select">Audio Device:</label>
+            <select id="device-select">
+              <option value="">Loading devices...</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="api-key-input">AssemblyAI API Key:</label>
+            <input
+              type="password"
+              id="api-key-input"
+              placeholder="Enter your API key"
+            />
+          </div>
+
+          <div class="control-group">
+            <label for="claude-api-key-input">Claude API Key (for summary):</label>
+            <input
+              type="password"
+              id="claude-api-key-input"
+              placeholder="Enter your Claude API key"
+            />
+          </div>
+
+          <div class="control-group">
+            <button id="start-btn" class="btn-primary">Start Recording</button>
+            <button id="stop-btn" class="btn-danger" disabled>Stop Recording</button>
+            <span id="status-indicator" class="status">Ready</span>
+          </div>
+        </div>
+
+        <div class="transcript-container">
+          <div class="transcript-header">
+            <h2>Live Transcript</h2>
+            <div class="transcript-actions">
+              <button id="copy-btn" class="btn-small">Copy</button>
+              <button id="clear-btn" class="btn-small">Clear</button>
+            </div>
+          </div>
+          <div id="transcript-display" class="transcript-display">
+            <p class="transcript-placeholder">Transcription will appear here...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Tab -->
+      <div id="summary-tab" class="tab-content">
+        <div id="summary-loading" class="summary-loading" style="display: none;">
+          <div class="spinner"></div>
+          <p>Generating summary with Claude...</p>
+        </div>
+
+        <div id="summary-content" class="summary-content" style="display: none;">
+          <!-- Summary Metadata -->
+          <div class="summary-metadata">
+            <div class="metadata-item">
+              <span class="metadata-label">Duration:</span>
+              <span id="summary-duration">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Chunks:</span>
+              <span id="summary-chunks">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Words:</span>
+              <span id="summary-words">-</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-label">Timestamp:</span>
+              <span id="summary-timestamp">-</span>
+            </div>
+          </div>
+
+          <!-- Executive Summary -->
+          <div class="summary-section">
+            <h2>Summary</h2>
+            <div id="summary-text" class="summary-text"></div>
+          </div>
+
+          <!-- Key Points -->
+          <div class="summary-section">
+            <h2>Key Points</h2>
+            <ul id="summary-key-points" class="summary-key-points"></ul>
+          </div>
+
+          <!-- Action Items -->
+          <div id="action-items-section" class="summary-section">
+            <h2>Action Items</h2>
+            <ul id="summary-action-items" class="summary-action-items"></ul>
+          </div>
+
+          <!-- Full Transcript -->
+          <div class="summary-section">
+            <details>
+              <summary><h2 style="display: inline; cursor: pointer;">Full Transcript</h2></summary>
+              <div id="summary-full-transcript" class="summary-full-transcript"></div>
+            </details>
+          </div>
+
+          <!-- Export Actions -->
+          <div class="summary-actions">
+            <button id="export-txt-btn" class="btn-primary">Export as TXT</button>
+            <button id="export-json-btn" class="btn-primary">Export as JSON</button>
+            <button id="copy-summary-btn" class="btn-primary">Copy Summary</button>
+            <button id="new-recording-btn" class="btn-secondary">New Recording</button>
+          </div>
+        </div>
+
+        <div id="summary-placeholder" class="summary-placeholder">
+          <p>Complete a recording to see the summary here.</p>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

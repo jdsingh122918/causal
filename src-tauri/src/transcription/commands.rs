@@ -1,10 +1,11 @@
 use crate::transcription::{
     assemblyai::{self, AssemblyAIClient},
     audio,
-    summary,
     buffer::{BufferManager, TranscriptionBuffer},
     enhancement::EnhancementAgent,
     refinement::RefinementAgent,
+    session::SessionManager,
+    summary,
 };
 use cpal::traits::DeviceTrait;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,8 @@ pub struct AppState {
     pub stop_sender: Arc<Mutex<Option<mpsc::UnboundedSender<()>>>>,
     pub audio_handle: Arc<Mutex<Option<audio::AudioCaptureHandle>>>,
     pub chunk_sender: Arc<Mutex<Option<mpsc::Sender<Vec<i16>>>>>,
+    pub session_manager: SessionManager,
+    pub current_project_id: Arc<Mutex<Option<String>>>,
 }
 
 impl Default for AppState {
@@ -32,6 +35,8 @@ impl Default for AppState {
             stop_sender: Arc::new(Mutex::new(None)),
             audio_handle: Arc::new(Mutex::new(None)),
             chunk_sender: Arc::new(Mutex::new(None)),
+            session_manager: SessionManager::new(),
+            current_project_id: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -49,8 +54,9 @@ pub async fn start_transcription(
     device_id: String,
     api_key: String,
     claude_api_key: Option<String>,
+    project_id: Option<String>,
 ) -> Result<(), String> {
-    tracing::info!("Starting transcription for device: {}", device_id);
+    tracing::info!("Starting transcription for device: {} (project: {:?})", device_id, project_id);
 
     // Check if already active
     let mut is_active = state.transcription_active.lock().await;
@@ -80,12 +86,19 @@ pub async fn start_transcription(
     let stop_sender_state = state.stop_sender.clone();
     let audio_handle_state = state.audio_handle.clone();
     let chunk_sender_state = state.chunk_sender.clone();
+    let session_manager = state.session_manager.clone();
 
     // Store stop sender and chunk sender
     *state.stop_sender.lock().await = Some(stop_tx.clone());
     *state.chunk_sender.lock().await = Some(chunk_tx.clone());
     *is_active = true;
     drop(is_active); // Release the lock
+
+    // Start a new session
+    state.session_manager.start_session(project_id.clone()).await;
+
+    // Update current project ID
+    *state.current_project_id.lock().await = project_id.clone();
 
     // Get device config for sample rate
     let device_config = device

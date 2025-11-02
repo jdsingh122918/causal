@@ -45,6 +45,58 @@ interface TranscriptSummary {
   };
 }
 
+// Project and Recording interfaces
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: number; // SystemTime as Unix timestamp
+  updated_at: number;
+}
+
+interface RecordingMetadata {
+  duration_seconds: number;
+  word_count: number;
+  chunk_count: number;
+  turn_count: number;
+  average_confidence: number;
+}
+
+interface Recording {
+  id: string;
+  project_id: string;
+  name: string;
+  raw_transcript: string;
+  enhanced_transcript: string;
+  summary: string | null;
+  key_points: string[];
+  action_items: string[];
+  metadata: RecordingMetadata;
+  status: "Recording" | "Processing" | "Completed" | "Failed";
+  created_at: number;
+}
+
+interface CreateProjectRequest {
+  name: string;
+  description: string;
+}
+
+interface SaveRecordingRequest {
+  project_id: string;
+  name: string;
+  raw_transcript: string;
+  enhanced_transcript: string;
+  summary: string | null;
+  key_points: string[];
+  action_items: string[];
+  metadata: RecordingMetadata;
+}
+
+interface DatabaseStats {
+  project_count: number;
+  recording_count: number;
+}
+
 // UI Elements
 let deviceSelect: HTMLSelectElement;
 let apiKeyInput: HTMLInputElement;
@@ -74,6 +126,13 @@ const DISPLAY_BUFFER_MS = 5000; // 5 second delay before showing results
 let turnBuffer: Array<{ turnOrder: number; text: string; timestamp: number }> =
   [];
 let displayUpdateInterval: number | null = null;
+
+// Project and Recording state
+let projects: Project[] = [];
+let currentProject: Project | null = null;
+let recordings: Recording[] = [];
+let currentRecording: Recording | null = null;
+let lastSummary: TranscriptSummary | null = null;
 
 // Tab switching
 function switchTab(tabName: string) {

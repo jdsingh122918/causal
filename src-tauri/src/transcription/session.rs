@@ -254,3 +254,147 @@ impl Default for SessionManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_session_lifecycle() {
+        let manager = SessionManager::new();
+
+        // Initially no session
+        assert!(!manager.has_active_session().await);
+
+        // Start session
+        manager.start_session(Some("project-1".to_string())).await;
+        assert!(manager.has_active_session().await);
+
+        // Get session data
+        let session = manager.get_session().await;
+        assert!(session.is_some());
+        assert_eq!(session.unwrap().project_id, Some("project-1".to_string()));
+
+        // End session
+        let ended = manager.end_session().await;
+        assert!(ended.is_some());
+        assert!(!manager.has_active_session().await);
+    }
+
+    #[tokio::test]
+    async fn test_add_turns_to_session() {
+        let manager = SessionManager::new();
+        manager.start_session(None).await;
+
+        // Add turns
+        manager.add_turn(1, "First turn.".to_string(), 0.95).await.unwrap();
+        manager.add_turn(2, "Second turn.".to_string(), 0.92).await.unwrap();
+
+        let session = manager.get_session().await.unwrap();
+        assert_eq!(session.turns.len(), 2);
+        assert_eq!(session.metadata.turn_count, 2);
+        assert!(session.raw_transcript.contains("First turn"));
+        assert!(session.raw_transcript.contains("Second turn"));
+    }
+
+    #[tokio::test]
+    async fn test_add_enhanced_buffers() {
+        let manager = SessionManager::new();
+        manager.start_session(None).await;
+
+        manager.add_enhanced_buffer(
+            1,
+            "raw text one".to_string(),
+            "Enhanced text one.".to_string(),
+        ).await.unwrap();
+
+        manager.add_enhanced_buffer(
+            2,
+            "raw text two".to_string(),
+            "Enhanced text two.".to_string(),
+        ).await.unwrap();
+
+        let session = manager.get_session().await.unwrap();
+        assert_eq!(session.enhanced_buffers.len(), 2);
+        assert!(session.enhanced_transcript.contains("Enhanced text one"));
+        assert!(session.enhanced_transcript.contains("Enhanced text two"));
+    }
+
+    #[tokio::test]
+    async fn test_session_metadata_calculation() {
+        let manager = SessionManager::new();
+        manager.start_session(None).await;
+
+        // Add turns with different confidences
+        manager.add_turn(1, "Turn one with ten words in it here.".to_string(), 0.9).await.unwrap();
+        manager.add_turn(2, "Turn two.".to_string(), 0.8).await.unwrap();
+
+        // Update metadata
+        manager.update_metadata(|s| {
+            s.update_duration();
+            s.set_chunk_count(5);
+        }).await.unwrap();
+
+        let session = manager.get_session().await.unwrap();
+
+        // Check metadata
+        assert_eq!(session.metadata.turn_count, 2);
+        assert_eq!(session.metadata.chunk_count, 5);
+        assert!(session.metadata.word_count > 0);
+
+        // Average confidence should be (0.9 + 0.8) / 2 = 0.85
+        let avg_conf = session.metadata.total_confidence / session.metadata.confidence_count as f64;
+        assert!((avg_conf - 0.85).abs() < 0.01);
+    }
+
+    #[tokio::test]
+    async fn test_session_to_recording() {
+        let mut session = SessionData::new(Some("project-123".to_string()));
+
+        session.add_turn(1, "Hello world.".to_string(), 0.95);
+        session.add_enhanced_buffer(1, "Hello world.".to_string(), "Hello, world!".to_string());
+
+        let recording = session.to_recording("project-123".to_string(), "Test Recording".to_string());
+
+        assert!(recording.is_ok());
+        let rec = recording.unwrap();
+
+        assert_eq!(rec.project_id, "project-123");
+        assert_eq!(rec.name, "Test Recording");
+        assert_eq!(rec.raw_transcript, "Hello world.");
+        assert_eq!(rec.enhanced_transcript, "Hello, world!");
+    }
+
+    #[tokio::test]
+    async fn test_empty_session_cannot_be_saved() {
+        let session = SessionData::new(None);
+
+        let result = session.to_recording("project-1".to_string(), "Empty".to_string());
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Cannot save empty recording");
+    }
+
+    #[tokio::test]
+    async fn test_clear_session() {
+        let manager = SessionManager::new();
+        manager.start_session(Some("project-1".to_string())).await;
+
+        assert!(manager.has_active_session().await);
+
+        manager.clear_session().await;
+
+        assert!(!manager.has_active_session().await);
+    }
+
+    #[tokio::test]
+    async fn test_session_word_count_updates() {
+        let mut session = SessionData::new(None);
+
+        session.add_turn(1, "One two three.".to_string(), 0.9);
+        assert_eq!(session.metadata.word_count, 3);
+
+        session.add_turn(2, "Four five.".to_string(), 0.9);
+        assert_eq!(session.metadata.word_count, 5);
+    }
+}

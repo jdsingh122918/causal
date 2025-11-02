@@ -276,4 +276,170 @@ mod tests {
         assert_eq!(recordings.len(), 1);
         assert_eq!(recordings[0].name, "Recording 1");
     }
+
+    #[tokio::test]
+    async fn test_duplicate_project_name() {
+        let db = Database::new();
+
+        db.create_project(Project::new("Duplicate".to_string(), "First".to_string()))
+            .await
+            .unwrap();
+
+        let result = db.create_project(Project::new("Duplicate".to_string(), "Second".to_string())).await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Project with this name already exists");
+    }
+
+    #[tokio::test]
+    async fn test_update_project() {
+        let db = Database::new();
+        let project = db.create_project(Project::new("Original".to_string(), "Desc".to_string()))
+            .await
+            .unwrap();
+
+        let updated = db.update_project(
+            &project.id,
+            Some("Updated".to_string()),
+            Some("New description".to_string()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "Updated");
+        assert_eq!(updated.description, "New description");
+    }
+
+    #[tokio::test]
+    async fn test_delete_project_cascades_recordings() {
+        let db = Database::new();
+        let project = db.create_project(Project::new("To Delete".to_string(), "".to_string()))
+            .await
+            .unwrap();
+
+        // Create a recording
+        let recording = Recording::new(
+            project.id.clone(),
+            "Recording".to_string(),
+            "raw".to_string(),
+            "enhanced".to_string(),
+        );
+        db.create_recording(recording).await.unwrap();
+
+        // Verify recording exists
+        let recordings = db.list_recordings(&project.id).await.unwrap();
+        assert_eq!(recordings.len(), 1);
+
+        // Delete project
+        db.delete_project(&project.id).await.unwrap();
+
+        // Verify project is gone
+        let result = db.get_project(&project.id).await;
+        assert!(result.is_err());
+
+        // Verify recording count is 0
+        assert_eq!(db.get_recording_count(None).await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_recording() {
+        let db = Database::new();
+        let project = db.create_project(Project::new("Test".to_string(), "".to_string()))
+            .await
+            .unwrap();
+
+        let recording = Recording::new(
+            project.id.clone(),
+            "Recording".to_string(),
+            "raw".to_string(),
+            "enhanced".to_string(),
+        );
+        let created = db.create_recording(recording).await.unwrap();
+
+        // Delete recording
+        db.delete_recording(&created.id).await.unwrap();
+
+        // Verify it's gone
+        let recordings = db.list_recordings(&project.id).await.unwrap();
+        assert_eq!(recordings.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_recording_name() {
+        let db = Database::new();
+        let project = db.create_project(Project::new("Test".to_string(), "".to_string()))
+            .await
+            .unwrap();
+
+        let recording = Recording::new(
+            project.id.clone(),
+            "Original Name".to_string(),
+            "raw".to_string(),
+            "enhanced".to_string(),
+        );
+        let created = db.create_recording(recording).await.unwrap();
+
+        let updated = db.update_recording_name(&created.id, "New Name".to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(updated.name, "New Name");
+    }
+
+    #[tokio::test]
+    async fn test_database_stats() {
+        let db = Database::new();
+
+        let project1 = db.create_project(Project::new("P1".to_string(), "".to_string()))
+            .await
+            .unwrap();
+        let project2 = db.create_project(Project::new("P2".to_string(), "".to_string()))
+            .await
+            .unwrap();
+
+        let rec1 = Recording::new(project1.id.clone(), "R1".to_string(), "".to_string(), "".to_string());
+        let rec2 = Recording::new(project1.id.clone(), "R2".to_string(), "".to_string(), "".to_string());
+        let rec3 = Recording::new(project2.id.clone(), "R3".to_string(), "".to_string(), "".to_string());
+
+        db.create_recording(rec1).await.unwrap();
+        db.create_recording(rec2).await.unwrap();
+        db.create_recording(rec3).await.unwrap();
+
+        assert_eq!(db.get_project_count().await, 2);
+        assert_eq!(db.get_recording_count(None).await, 3);
+        assert_eq!(db.get_recording_count(Some(&project1.id)).await, 2);
+        assert_eq!(db.get_recording_count(Some(&project2.id)).await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_recording_metadata() {
+        let db = Database::new();
+        let project = db.create_project(Project::new("Test".to_string(), "".to_string()))
+            .await
+            .unwrap();
+
+        let metadata = super::super::models::RecordingMetadata {
+            duration_seconds: 120.5,
+            word_count: 250,
+            chunk_count: 12,
+            turn_count: 15,
+            average_confidence: 0.95,
+        };
+
+        let recording = Recording::new(
+            project.id.clone(),
+            "Test Recording".to_string(),
+            "raw transcript".to_string(),
+            "enhanced transcript".to_string(),
+        )
+        .with_metadata(metadata.clone());
+
+        let created = db.create_recording(recording).await.unwrap();
+
+        assert_eq!(created.metadata.duration_seconds, 120.5);
+        assert_eq!(created.metadata.word_count, 250);
+        assert_eq!(created.metadata.chunk_count, 12);
+        assert_eq!(created.metadata.turn_count, 15);
+        assert_eq!(created.metadata.average_confidence, 0.95);
+    }
 }

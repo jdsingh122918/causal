@@ -161,36 +161,18 @@ async function loadAudioDevices() {
       return;
     }
 
-    // Add input devices (microphones)
+    // Only show input devices (microphones)
+    // Output devices (speakers) are filtered out since they can't be used for recording
+    // Note: Loopback software like BlackHole appears as an Input device
     const inputDevices = devices.filter((d) => d.device_type === "Input");
-    if (inputDevices.length > 0) {
-      const inputGroup = document.createElement("optgroup");
-      inputGroup.label = "🎤 Input Devices (Can Record)";
-      inputDevices.forEach((device) => {
-        const option = document.createElement("option");
-        option.value = device.id;
-        option.textContent =
-          device.name + (device.is_default ? " (Default)" : "");
-        inputGroup.appendChild(option);
-      });
-      deviceSelect.appendChild(inputGroup);
-    }
 
-    // Add output devices (speakers - NOT usable for recording without loopback software)
-    const outputDevices = devices.filter((d) => d.device_type === "Output");
-    if (outputDevices.length > 0) {
-      const outputGroup = document.createElement("optgroup");
-      outputGroup.label = "🔊 Output Devices (Requires Loopback Software)";
-      outputDevices.forEach((device) => {
-        const option = document.createElement("option");
-        option.value = device.id;
-        option.textContent =
-          device.name + (device.is_default ? " (Default)" : "");
-        option.disabled = true; // Disable to prevent selection
-        outputGroup.appendChild(option);
-      });
-      deviceSelect.appendChild(outputGroup);
-    }
+    inputDevices.forEach((device) => {
+      const option = document.createElement("option");
+      option.value = device.id;
+      option.textContent =
+        device.name + (device.is_default ? " (Default)" : "");
+      deviceSelect.appendChild(option);
+    });
 
     // Select default input device
     const defaultDevice = devices.find(

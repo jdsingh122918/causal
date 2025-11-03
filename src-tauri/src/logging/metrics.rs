@@ -261,10 +261,13 @@ impl Default for MetricsCollector {
 }
 
 /// Helper for timing operations
+/// Future: Use for instrumenting critical paths
+#[allow(dead_code)]
 pub struct TimedOperation {
     start: Instant,
 }
 
+#[allow(dead_code)]
 impl TimedOperation {
     pub fn new() -> Self {
         Self {

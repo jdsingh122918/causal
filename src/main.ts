@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { initDiagnostics } from "./diagnostics";
 
 interface AudioDevice {
   id: string;
@@ -1616,4 +1617,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Check for updates after app loads
   await checkForUpdates();
+
+  // Initialize diagnostics tab
+  initDiagnostics();
 });

@@ -1,7 +1,8 @@
 mod config;
 mod privacy;
 
-pub use config::LoggingConfig;
+#[allow(unused_imports)] // PrivacyMode used in tests and public API
+pub use config::{LoggingConfig, PrivacyMode};
 
 use tracing_subscriber::{fmt, EnvFilter};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};

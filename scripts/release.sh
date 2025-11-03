@@ -91,38 +91,33 @@ case $CHOICE in
         NEW_VERSION=$NEXT_MAJOR
         ;;
     4)
-        echo "Select pre-release type:"
-        echo "  1) RC (Release Candidate)"
-        echo "  2) Beta"
-        echo "  3) Alpha"
+        print_info "Pre-release versions use numeric-only identifiers for MSI compatibility"
+        print_info "Format: MAJOR.MINOR.PATCH-NUMBER (e.g., 0.1.0-1, 0.1.0-2)"
         echo
-        read -p "Enter choice (1-3): " -n 1 -r PRERELEASE_CHOICE
+        echo "Recommended numbering scheme:"
+        echo "  1-99:    Release Candidates (RC)"
+        echo "  100-199: Beta releases"
+        echo "  200-299: Alpha releases"
         echo
 
-        PRERELEASE_TYPE=""
-        case $PRERELEASE_CHOICE in
-            1) PRERELEASE_TYPE="rc" ;;
-            2) PRERELEASE_TYPE="beta" ;;
-            3) PRERELEASE_TYPE="alpha" ;;
-            *)
-                print_error "Invalid choice"
-                exit 1
-                ;;
-        esac
-
-        read -p "Enter pre-release number (e.g., 1): " PRERELEASE_NUM
+        read -p "Enter pre-release number (e.g., 1 for RC-1, 100 for Beta-1): " PRERELEASE_NUM
         if ! [[ $PRERELEASE_NUM =~ ^[0-9]+$ ]]; then
             print_error "Invalid pre-release number. Must be a positive integer."
             exit 1
         fi
 
-        NEW_VERSION="$CURRENT_VERSION-$PRERELEASE_TYPE.$PRERELEASE_NUM"
+        if [ $PRERELEASE_NUM -gt 65535 ]; then
+            print_error "Pre-release number must be ≤ 65535 for Windows MSI compatibility."
+            exit 1
+        fi
+
+        NEW_VERSION="$CURRENT_VERSION-$PRERELEASE_NUM"
         ;;
     5)
-        read -p "Enter custom version (e.g., 1.2.3 or 1.2.3-rc.1): " NEW_VERSION
-        # Validate semantic version format (with optional pre-release suffix)
-        if ! [[ $NEW_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; then
-            print_error "Invalid version format. Must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease.number (e.g., 1.2.3 or 1.2.3-rc.1)"
+        read -p "Enter custom version (e.g., 1.2.3 or 1.2.3-1): " NEW_VERSION
+        # Validate semantic version format (with optional numeric pre-release suffix)
+        if ! [[ $NEW_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
+            print_error "Invalid version format. Must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-NUMBER (e.g., 1.2.3 or 1.2.3-1)"
             exit 1
         fi
         ;;

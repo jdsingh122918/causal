@@ -34,3 +34,6 @@ target/
 # Release scripts (local versions)
 scripts/release.sh.local
 .env.release
+
+# Claude Code local settings
+.claude/settings.local.json

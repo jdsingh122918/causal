@@ -54,11 +54,6 @@ pub struct BufferManager {
 }
 
 impl BufferManager {
-    /// Create a new buffer manager with default settings (10 second chunks)
-    pub fn new(buffer_sender: mpsc::UnboundedSender<TranscriptionBuffer>) -> Self {
-        Self::new_with_config(buffer_sender, 10, false)
-    }
-
     /// Create a new buffer manager with custom configuration
     pub fn new_with_config(
         buffer_sender: mpsc::UnboundedSender<TranscriptionBuffer>,

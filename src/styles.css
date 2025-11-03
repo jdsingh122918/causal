@@ -630,6 +630,30 @@ button:disabled {
   margin-top: 0.125rem;
 }
 
+.project-delete-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: opacity 0.2s, background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.project-item:hover .project-delete-btn {
+  opacity: 1;
+}
+
+.project-delete-btn:hover {
+  background-color: #ffebee;
+}
+
+.project-delete-btn:active {
+  background-color: #ffcdd2;
+}
+
 .project-menu-btn {
   opacity: 0;
   background: transparent;
@@ -1115,6 +1139,14 @@ button:disabled {
 
   .project-meta {
     color: #aaa;
+  }
+
+  .project-delete-btn:hover {
+    background-color: #4a2424;
+  }
+
+  .project-delete-btn:active {
+    background-color: #5a2a2a;
   }
 
   .main-content {

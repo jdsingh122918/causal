@@ -695,9 +695,25 @@ function renderProjects() {
         <div class="project-name">${escapeHtml(project.name)}</div>
         <div class="project-meta">${project.description || "No description"}</div>
       </div>
+      <button class="project-delete-btn" title="Delete project" data-project-id="${project.id}">
+        🗑️
+      </button>
     `;
 
-    projectEl.addEventListener("click", () => selectProject(project));
+    projectEl.addEventListener("click", (e) => {
+      // Don't select project if clicking delete button
+      if (!(e.target as HTMLElement).closest(".project-delete-btn")) {
+        selectProject(project);
+      }
+    });
+
+    // Add delete button handler
+    const deleteBtn = projectEl.querySelector(".project-delete-btn");
+    deleteBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      confirmDeleteProject(project);
+    });
+
     projectsList.appendChild(projectEl);
   });
 }
@@ -737,6 +753,38 @@ async function createProject(name: string, description: string) {
   } catch (error) {
     console.error("Failed to create project:", error);
     throw error;
+  }
+}
+
+function confirmDeleteProject(project: Project) {
+  const recordingCount = recordings.length;
+  const message =
+    recordingCount > 0
+      ? `Are you sure you want to delete "${project.name}"?\n\nThis will permanently delete:\n- The project\n- ${recordingCount} recording${recordingCount !== 1 ? "s" : ""}\n\nThis action cannot be undone.`
+      : `Are you sure you want to delete "${project.name}"?\n\nThis action cannot be undone.`;
+
+  if (confirm(message)) {
+    deleteProject(project.id);
+  }
+}
+
+async function deleteProject(projectId: string) {
+  try {
+    await invoke("delete_project", { id: projectId });
+
+    // If the deleted project was the current project, clear it
+    if (currentProject && currentProject.id === projectId) {
+      currentProject = null;
+      recordings = [];
+      updateCurrentProjectIndicator();
+      renderRecordings();
+    }
+
+    // Reload projects and auto-select first one if available
+    await loadProjects();
+  } catch (error) {
+    console.error("Failed to delete project:", error);
+    alert(`Failed to delete project: ${error}`);
   }
 }
 

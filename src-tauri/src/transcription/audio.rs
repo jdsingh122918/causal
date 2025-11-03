@@ -1,8 +1,8 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, StreamConfig};
 use serde::{Deserialize, Serialize};
-use std::sync::{mpsc as std_mpsc, Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc as std_mpsc, Arc, Mutex};
 use std::thread;
 use tokio::sync::mpsc;
 
@@ -143,10 +143,7 @@ pub struct AudioCapture {
 
 impl AudioCapture {
     /// Create a new audio capture instance for real-time streaming
-    pub fn new(
-        device: Device,
-        chunk_sender: mpsc::Sender<Vec<i16>>,
-    ) -> Result<Self, String> {
+    pub fn new(device: Device, chunk_sender: mpsc::Sender<Vec<i16>>) -> Result<Self, String> {
         // Get the default input config
         let config = device
             .default_input_config()
@@ -334,4 +331,3 @@ impl AudioCapture {
         Ok(stream)
     }
 }
-

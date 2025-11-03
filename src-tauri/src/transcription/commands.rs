@@ -5,8 +5,7 @@ use crate::transcription::{
     enhancement::EnhancementAgent,
     refinement::RefinementAgent,
     session::SessionManager,
-    summary,
-    RefinementConfig, RefinementMode,
+    summary, RefinementConfig, RefinementMode,
 };
 use cpal::traits::DeviceTrait;
 use serde::{Deserialize, Serialize};
@@ -61,7 +60,9 @@ pub async fn start_transcription(
     let refinement_cfg = refinement_config.unwrap_or_default();
     tracing::info!(
         "Starting transcription for device: {} (project: {:?}, refinement: {:?})",
-        device_id, project_id, refinement_cfg.mode
+        device_id,
+        project_id,
+        refinement_cfg.mode
     );
 
     // Check if already active
@@ -102,7 +103,10 @@ pub async fn start_transcription(
     drop(is_active); // Release the lock
 
     // Start a new session
-    state.session_manager.start_session(project_id.clone()).await;
+    state
+        .session_manager
+        .start_session(project_id.clone())
+        .await;
 
     // Update current project ID
     *state.current_project_id.lock().await = project_id.clone();
@@ -121,7 +125,8 @@ pub async fn start_transcription(
 
     // Spawn task to handle transcription
     let app_clone = app.clone();
-    let enhancement_enabled = claude_api_key.is_some() && refinement_cfg.mode != RefinementMode::Disabled;
+    let enhancement_enabled =
+        claude_api_key.is_some() && refinement_cfg.mode != RefinementMode::Disabled;
 
     // Spawn async task for streaming processing
     tokio::spawn(async move {
@@ -129,7 +134,10 @@ pub async fn start_transcription(
         let app_for_error = app_clone.clone();
         let config = assemblyai::StreamingConfig::default();
         let mut processing_handle = tokio::spawn(async move {
-            if let Err(e) = client.stream_audio(chunk_rx, transcript_tx, sample_rate, config).await {
+            if let Err(e) = client
+                .stream_audio(chunk_rx, transcript_tx, sample_rate, config)
+                .await
+            {
                 tracing::error!("Streaming error: {}", e);
                 // Emit error to frontend
                 let _ = app_for_error.emit("transcription_error", e);
@@ -144,7 +152,7 @@ pub async fn start_transcription(
         let mut buffer_manager = BufferManager::new_with_config(
             buffer_tx,
             refinement_cfg.chunk_duration_secs,
-            immediate_flush
+            immediate_flush,
         );
 
         let transcript_handle = tokio::spawn(async move {
@@ -155,19 +163,24 @@ pub async fn start_transcription(
                 // Use timeout to detect when no transcripts are received
                 match tokio::time::timeout(
                     tokio::time::Duration::from_secs(10),
-                    transcript_rx.recv()
-                ).await {
+                    transcript_rx.recv(),
+                )
+                .await
+                {
                     Ok(Some(result)) => {
                         transcript_count += 1;
                         last_transcript_time = std::time::Instant::now();
 
                         // Track in session manager
                         if result.is_final {
-                            if let Err(e) = session_manager_transcript.add_turn(
-                                result.turn_order as usize,
-                                result.text.clone(),
-                                result.confidence as f64
-                            ).await {
+                            if let Err(e) = session_manager_transcript
+                                .add_turn(
+                                    result.turn_order as usize,
+                                    result.text.clone(),
+                                    result.confidence as f64,
+                                )
+                                .await
+                            {
                                 tracing::error!("Failed to track turn in session: {}", e);
                             }
                         }
@@ -180,15 +193,24 @@ pub async fn start_transcription(
                         // Only add FINAL turns to buffer for enhancement
                         // This prevents duplicates from partial turn updates
                         if result.is_final {
-                            tracing::debug!("Adding final turn {} to buffer manager", result.turn_order);
+                            tracing::debug!(
+                                "Adding final turn {} to buffer manager",
+                                result.turn_order
+                            );
                             buffer_manager.add_result(result.text, result.end_of_turn);
                         } else {
-                            tracing::debug!("Received partial turn {} (skipping buffer)", result.turn_order);
+                            tracing::debug!(
+                                "Received partial turn {} (skipping buffer)",
+                                result.turn_order
+                            );
                         }
                     }
                     Ok(None) => {
                         // Channel closed
-                        tracing::info!("Transcript channel closed after {} transcripts", transcript_count);
+                        tracing::info!(
+                            "Transcript channel closed after {} transcripts",
+                            transcript_count
+                        );
                         break;
                     }
                     Err(_) => {
@@ -216,15 +238,23 @@ pub async fn start_transcription(
                         match agent.enhance(buffer).await {
                             Ok(enhanced) => {
                                 // Track in session manager
-                                if let Err(e) = session_manager_enhanced.add_enhanced_buffer(
-                                    enhanced.buffer_id as usize,
-                                    enhanced.raw_text.clone(),
-                                    enhanced.enhanced_text.clone()
-                                ).await {
-                                    tracing::error!("Failed to track enhanced buffer in session: {}", e);
+                                if let Err(e) = session_manager_enhanced
+                                    .add_enhanced_buffer(
+                                        enhanced.buffer_id as usize,
+                                        enhanced.raw_text.clone(),
+                                        enhanced.enhanced_text.clone(),
+                                    )
+                                    .await
+                                {
+                                    tracing::error!(
+                                        "Failed to track enhanced buffer in session: {}",
+                                        e
+                                    );
                                 }
 
-                                if let Err(e) = app_for_enhanced.emit("enhanced_transcript", enhanced) {
+                                if let Err(e) =
+                                    app_for_enhanced.emit("enhanced_transcript", enhanced)
+                                {
                                     tracing::error!("Failed to emit enhanced transcript: {}", e);
                                 }
                             }
@@ -370,7 +400,9 @@ pub async fn summarize_transcription(
     );
 
     let summary_service = summary::SummaryService::new(claude_api_key);
-    summary_service.summarize(transcript_text, chunk_count).await
+    summary_service
+        .summarize(transcript_text, chunk_count)
+        .await
 }
 
 #[tauri::command]

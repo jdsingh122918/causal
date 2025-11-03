@@ -18,8 +18,6 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # for Intel based macs.
             args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
           - platform: 'windows-latest'
             args: ''
 
@@ -27,12 +25,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -58,6 +50,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Causal v__VERSION__'
@@ -69,7 +62,6 @@ jobs:
             - **macOS (Apple Silicon)**: `.dmg` file with `aarch64` in the name
             - **macOS (Intel)**: `.dmg` file with `x64` in the name
             - **Windows**: `.msi` or `.exe` installer
-            - **Linux**: `.AppImage`, `.deb`, or `.rpm` package
 
             ## Installation
 
@@ -83,39 +75,8 @@ jobs:
             2. Run the installer and follow the prompts
             3. Windows may show a SmartScreen warning - click "More info" then "Run anyway"
 
-            ### Linux
-            1. Download the appropriate package for your distribution
-            2. For AppImage: Make it executable (`chmod +x Causal*.AppImage`) and run it
-            3. For .deb: Install with `sudo dpkg -i Causal*.deb`
-            4. For .rpm: Install with `sudo rpm -i Causal*.rpm`
+            ## Auto-Updates
+            The app will automatically check for updates on startup and notify you when a new version is available.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-
-  upload-to-packages:
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download release assets
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Display artifacts structure
-        run: ls -R ./artifacts
-
-      - name: Upload artifacts summary
-        run: |
-          echo "## Release Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The following installers have been built:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          find ./artifacts -type f | while read file; do
-            echo "- $(basename $file)" >> $GITHUB_STEP_SUMMARY
-          done

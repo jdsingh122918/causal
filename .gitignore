@@ -25,3 +25,12 @@ dist-ssr
 
 # Rust build artifacts
 target/
+
+# Tauri signing keys (NEVER commit these!)
+*.key
+*.key.pub
+.tauri/
+
+# Release scripts (local versions)
+scripts/release.sh.local
+.env.release

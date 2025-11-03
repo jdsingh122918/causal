@@ -85,7 +85,10 @@ impl BufferManager {
         // For immediate flush mode (real-time), flush every turn
         if self.immediate_flush {
             self.buffer_count += 1;
-            tracing::debug!("Real-time mode: Creating buffer {} for immediate enhancement", self.buffer_count);
+            tracing::debug!(
+                "Real-time mode: Creating buffer {} for immediate enhancement",
+                self.buffer_count
+            );
             let mut buffer = TranscriptionBuffer::new(self.buffer_count);
             buffer.add_text(text);
             buffer.mark_complete();
@@ -112,7 +115,9 @@ impl BufferManager {
             // For chunked mode, use configurable duration
             let min_duration_for_end_of_turn = self.buffer_duration_secs / 2; // At least half the buffer duration
             if buffer.should_flush(self.buffer_duration_secs)
-                || (end_of_turn && buffer.duration() >= Duration::from_secs(min_duration_for_end_of_turn)) {
+                || (end_of_turn
+                    && buffer.duration() >= Duration::from_secs(min_duration_for_end_of_turn))
+            {
                 return self.flush_current_buffer();
             }
         }

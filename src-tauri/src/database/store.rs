@@ -21,8 +21,8 @@ impl Database {
                 .map_err(|e| format!("Failed to create database directory: {}", e))?;
         }
 
-        let conn = Connection::open(&db_path)
-            .map_err(|e| format!("Failed to open database: {}", e))?;
+        let conn =
+            Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
         let db = Self {
             connection: Arc::new(Mutex::new(conn)),
@@ -47,7 +47,9 @@ impl Database {
 
     fn init_schema(&self) -> Result<(), String> {
         // Try to get lock - works in both sync and async contexts
-        let conn = self.connection.try_lock()
+        let conn = self
+            .connection
+            .try_lock()
             .map_err(|_| "Failed to acquire lock for schema initialization".to_string())?;
 
         conn.execute(
@@ -135,7 +137,9 @@ impl Database {
         let conn = self.connection.lock().await;
 
         let mut stmt = conn
-            .prepare("SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?1")
+            .prepare(
+                "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?1",
+            )
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
         let project = stmt
@@ -187,7 +191,9 @@ impl Database {
 
         // First check if project exists
         let exists: bool = conn
-            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![id], |_| Ok(true))
+            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![id], |_| {
+                Ok(true)
+            })
             .unwrap_or(false);
 
         if !exists {
@@ -227,7 +233,9 @@ impl Database {
 
         // Check if project exists
         let exists: bool = conn
-            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![id], |_| Ok(true))
+            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![id], |_| {
+                Ok(true)
+            })
             .unwrap_or(false);
 
         if !exists {
@@ -317,8 +325,10 @@ impl Database {
                 let action_items_json: String = row.get(7)?;
                 let status_str: String = row.get(13)?;
 
-                let key_points: Vec<String> = serde_json::from_str(&key_points_json).unwrap_or_default();
-                let action_items: Vec<String> = serde_json::from_str(&action_items_json).unwrap_or_default();
+                let key_points: Vec<String> =
+                    serde_json::from_str(&key_points_json).unwrap_or_default();
+                let action_items: Vec<String> =
+                    serde_json::from_str(&action_items_json).unwrap_or_default();
                 let status = match status_str.as_str() {
                     "Recording" => RecordingStatus::Recording,
                     "Processing" => RecordingStatus::Processing,
@@ -357,7 +367,11 @@ impl Database {
 
         // Verify project exists
         let project_exists: bool = conn
-            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![project_id], |_| Ok(true))
+            .query_row(
+                "SELECT 1 FROM projects WHERE id = ?1",
+                params![project_id],
+                |_| Ok(true),
+            )
             .unwrap_or(false);
 
         if !project_exists {
@@ -379,8 +393,10 @@ impl Database {
                 let action_items_json: String = row.get(7)?;
                 let status_str: String = row.get(13)?;
 
-                let key_points: Vec<String> = serde_json::from_str(&key_points_json).unwrap_or_default();
-                let action_items: Vec<String> = serde_json::from_str(&action_items_json).unwrap_or_default();
+                let key_points: Vec<String> =
+                    serde_json::from_str(&key_points_json).unwrap_or_default();
+                let action_items: Vec<String> =
+                    serde_json::from_str(&action_items_json).unwrap_or_default();
                 let status = match status_str.as_str() {
                     "Recording" => RecordingStatus::Recording,
                     "Processing" => RecordingStatus::Processing,

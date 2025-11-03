@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 interface AudioDevice {
   id: string;
@@ -1275,6 +1277,48 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+// Check for updates on app startup
+async function checkForUpdates() {
+  try {
+    console.log("Checking for updates...");
+    const update = await check();
+
+    if (update) {
+      console.log(`Update available: ${update.version}`);
+
+      const userConfirmed = await ask(
+        `A new version (${update.version}) is available!\n\nWould you like to download and install it now?`,
+        {
+          title: "Update Available",
+          kind: "info",
+          okLabel: "Update Now",
+          cancelLabel: "Later",
+        },
+      );
+
+      if (userConfirmed) {
+        console.log("Downloading and installing update...");
+
+        // Show status during download
+        statusIndicator.textContent = "Downloading update...";
+        statusIndicator.className = "status connecting";
+
+        await update.downloadAndInstall();
+
+        // Relaunch the app to apply the update
+        await relaunch();
+      } else {
+        console.log("Update declined by user");
+      }
+    } else {
+      console.log("No updates available");
+    }
+  } catch (error) {
+    console.error("Failed to check for updates:", error);
+    // Don't show error to user on startup - updates are optional
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   // Get DOM elements
   deviceSelect = document.querySelector("#device-select")!;
@@ -1569,4 +1613,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem("claude_api_key", claudeApiKeyInput.value.trim());
     }
   });
+
+  // Check for updates after app loads
+  await checkForUpdates();
 });

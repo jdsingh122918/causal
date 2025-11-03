@@ -180,9 +180,7 @@ Transcript:
     }
 
     /// Parse Claude's structured response
-    fn parse_claude_response(
-        text: &str,
-    ) -> Result<(String, Vec<String>, Vec<String>), String> {
+    fn parse_claude_response(text: &str) -> Result<(String, Vec<String>, Vec<String>), String> {
         let mut summary = String::new();
         let mut key_points = Vec::new();
         let mut action_items = Vec::new();
@@ -214,7 +212,8 @@ Transcript:
                 }
                 "key_points" => {
                     if trimmed.starts_with('-') || trimmed.starts_with('•') {
-                        let point = trimmed.trim_start_matches('-')
+                        let point = trimmed
+                            .trim_start_matches('-')
                             .trim_start_matches('•')
                             .trim()
                             .to_string();
@@ -225,7 +224,8 @@ Transcript:
                 }
                 "action_items" => {
                     if trimmed.starts_with('-') || trimmed.starts_with('•') {
-                        let item = trimmed.trim_start_matches('-')
+                        let item = trimmed
+                            .trim_start_matches('-')
                             .trim_start_matches('•')
                             .trim()
                             .to_string();

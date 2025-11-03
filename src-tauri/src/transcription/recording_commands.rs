@@ -13,13 +13,20 @@ pub async fn save_recording(
     action_items: Vec<String>,
 ) -> Result<Recording, String> {
     // Get current project ID
-    let project_id = state.current_project_id.lock().await.clone()
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .clone()
         .ok_or_else(|| "No project selected".to_string())?;
 
     tracing::info!("Saving recording: {} to project: {}", name, project_id);
 
     // Get session data from SessionManager
-    let session = state.session_manager.get_session().await
+    let session = state
+        .session_manager
+        .get_session()
+        .await
         .ok_or_else(|| "No active session".to_string())?;
 
     // Convert session data to recording
@@ -68,17 +75,13 @@ pub async fn set_current_project(
 
 /// Get the current project ID
 #[tauri::command]
-pub async fn get_current_project(
-    state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
+pub async fn get_current_project(state: State<'_, AppState>) -> Result<Option<String>, String> {
     Ok(state.current_project_id.lock().await.clone())
 }
 
 /// Clear the current session
 #[tauri::command]
-pub async fn clear_current_session(
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn clear_current_session(state: State<'_, AppState>) -> Result<(), String> {
     tracing::info!("Clearing current session");
     state.session_manager.clear_session().await;
     Ok(())

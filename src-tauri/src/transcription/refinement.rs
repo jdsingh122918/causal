@@ -105,7 +105,8 @@ Refined transcript:"#,
         }
 
         // Wait for execution to complete
-        handle.await
+        handle
+            .await
             .map_err(|e| format!("Task join error: {}", e))?
             .map_err(|e| format!("API call failed: {}", e))?;
 

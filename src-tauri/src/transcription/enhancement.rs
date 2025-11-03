@@ -1,8 +1,8 @@
+use crate::transcription::buffer::TranscriptionBuffer;
 use anthropic_sdk::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc;
-use crate::transcription::buffer::TranscriptionBuffer;
 
 /// Result of AI enhancement processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +108,8 @@ Enhanced transcription (start immediately, no preamble):"#,
         }
 
         // Wait for execution to complete
-        handle.await
+        handle
+            .await
             .map_err(|e| format!("Task join error: {}", e))?
             .map_err(|e| format!("API call failed: {}", e))?;
 

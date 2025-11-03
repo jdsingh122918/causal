@@ -1,5 +1,5 @@
-pub mod audio;
 pub mod assemblyai;
+pub mod audio;
 pub mod buffer;
 pub mod commands;
 pub mod enhancement;

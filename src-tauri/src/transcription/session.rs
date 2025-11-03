@@ -1,4 +1,4 @@
-use crate::database::{RecordingMetadata, Recording};
+use crate::database::{Recording, RecordingMetadata};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -106,7 +106,12 @@ impl SessionData {
     }
 
     /// Add an enhanced buffer to the session
-    pub fn add_enhanced_buffer(&mut self, buffer_id: usize, raw_text: String, enhanced_text: String) {
+    pub fn add_enhanced_buffer(
+        &mut self,
+        buffer_id: usize,
+        raw_text: String,
+        enhanced_text: String,
+    ) {
         self.enhanced_buffers.push(EnhancedBufferData {
             buffer_id,
             raw_text,
@@ -192,7 +197,12 @@ impl SessionManager {
     }
 
     /// Update the current session with a turn
-    pub async fn add_turn(&self, turn_order: usize, text: String, confidence: f64) -> Result<(), String> {
+    pub async fn add_turn(
+        &self,
+        turn_order: usize,
+        text: String,
+        confidence: f64,
+    ) -> Result<(), String> {
         let mut session = self.current_session.lock().await;
         match session.as_mut() {
             Some(s) => {
@@ -295,8 +305,14 @@ mod tests {
         manager.start_session(None).await;
 
         // Add turns
-        manager.add_turn(1, "First turn.".to_string(), 0.95).await.unwrap();
-        manager.add_turn(2, "Second turn.".to_string(), 0.92).await.unwrap();
+        manager
+            .add_turn(1, "First turn.".to_string(), 0.95)
+            .await
+            .unwrap();
+        manager
+            .add_turn(2, "Second turn.".to_string(), 0.92)
+            .await
+            .unwrap();
 
         let session = manager.get_session().await.unwrap();
         assert_eq!(session.turns.len(), 2);
@@ -310,17 +326,23 @@ mod tests {
         let manager = SessionManager::new();
         manager.start_session(None).await;
 
-        manager.add_enhanced_buffer(
-            1,
-            "raw text one".to_string(),
-            "Enhanced text one.".to_string(),
-        ).await.unwrap();
+        manager
+            .add_enhanced_buffer(
+                1,
+                "raw text one".to_string(),
+                "Enhanced text one.".to_string(),
+            )
+            .await
+            .unwrap();
 
-        manager.add_enhanced_buffer(
-            2,
-            "raw text two".to_string(),
-            "Enhanced text two.".to_string(),
-        ).await.unwrap();
+        manager
+            .add_enhanced_buffer(
+                2,
+                "raw text two".to_string(),
+                "Enhanced text two.".to_string(),
+            )
+            .await
+            .unwrap();
 
         let session = manager.get_session().await.unwrap();
         assert_eq!(session.enhanced_buffers.len(), 2);
@@ -334,14 +356,23 @@ mod tests {
         manager.start_session(None).await;
 
         // Add turns with different confidences
-        manager.add_turn(1, "Turn one with ten words in it here.".to_string(), 0.9).await.unwrap();
-        manager.add_turn(2, "Turn two.".to_string(), 0.8).await.unwrap();
+        manager
+            .add_turn(1, "Turn one with ten words in it here.".to_string(), 0.9)
+            .await
+            .unwrap();
+        manager
+            .add_turn(2, "Turn two.".to_string(), 0.8)
+            .await
+            .unwrap();
 
         // Update metadata
-        manager.update_metadata(|s| {
-            s.update_duration();
-            s.set_chunk_count(5);
-        }).await.unwrap();
+        manager
+            .update_metadata(|s| {
+                s.update_duration();
+                s.set_chunk_count(5);
+            })
+            .await
+            .unwrap();
 
         let session = manager.get_session().await.unwrap();
 
@@ -362,7 +393,8 @@ mod tests {
         session.add_turn(1, "Hello world.".to_string(), 0.95);
         session.add_enhanced_buffer(1, "Hello world.".to_string(), "Hello, world!".to_string());
 
-        let recording = session.to_recording("project-123".to_string(), "Test Recording".to_string());
+        let recording =
+            session.to_recording("project-123".to_string(), "Test Recording".to_string());
 
         assert!(recording.is_ok());
         let rec = recording.unwrap();

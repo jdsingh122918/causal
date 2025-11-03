@@ -86,7 +86,12 @@ impl Recording {
         }
     }
 
-    pub fn with_summary(mut self, summary: String, key_points: Vec<String>, action_items: Vec<String>) -> Self {
+    pub fn with_summary(
+        mut self,
+        summary: String,
+        key_points: Vec<String>,
+        action_items: Vec<String>,
+    ) -> Self {
         self.summary = Some(summary);
         self.key_points = key_points;
         self.action_items = action_items;

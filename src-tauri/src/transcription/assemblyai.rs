@@ -48,7 +48,7 @@ enum ServerMessage {
         session_duration_seconds: f32,
     },
     Error {
-        error: String
+        error: String,
     },
 }
 
@@ -133,10 +133,7 @@ impl AssemblyAIClient {
                 match msg_result {
                     Ok(Message::Text(text)) => {
                         match serde_json::from_str::<ServerMessage>(&text) {
-                            Ok(ServerMessage::Begin {
-                                id,
-                                expires_at: _,
-                            }) => {
+                            Ok(ServerMessage::Begin { id, expires_at: _ }) => {
                                 tracing::debug!("Session started: {}", id);
                             }
                             Ok(ServerMessage::Turn {
@@ -173,11 +170,7 @@ impl AssemblyAIClient {
                                     };
 
                                     if end_of_turn {
-                                        tracing::info!(
-                                            "✓ Turn {}: \"{}\"",
-                                            turn_order,
-                                            preview
-                                        );
+                                        tracing::info!("✓ Turn {}: \"{}\"", turn_order, preview);
                                     } else {
                                         tracing::debug!(
                                             "⋯ Turn {} (partial): \"{}\"",
@@ -188,7 +181,10 @@ impl AssemblyAIClient {
 
                                     if let Err(e) = transcript_tx.send(result) {
                                         // This is expected when stopping - the receiver is dropped
-                                        tracing::debug!("Transcript receiver closed (normal during stop): {}", e);
+                                        tracing::debug!(
+                                            "Transcript receiver closed (normal during stop): {}",
+                                            e
+                                        );
                                         break;
                                     }
                                 }
@@ -259,7 +255,10 @@ impl AssemblyAIClient {
 
                         if sample_count % (48000 * 10) == 0 {
                             // Log every 10 seconds (at 48kHz)
-                            tracing::info!("🎤 Audio streaming: ~{:.0}s", sample_count as f32 / 48000.0);
+                            tracing::info!(
+                                "🎤 Audio streaming: ~{:.0}s",
+                                sample_count as f32 / 48000.0
+                            );
                         }
                     }
                     None => {
@@ -280,14 +279,20 @@ impl AssemblyAIClient {
             // Send terminate message to close the session cleanly
             let terminate_msg = r#"{"type":"terminate"}"#;
             if let Err(e) = write.send(Message::Text(terminate_msg.to_string())).await {
-                tracing::debug!("Failed to send terminate message (expected if stopped): {}", e);
+                tracing::debug!(
+                    "Failed to send terminate message (expected if stopped): {}",
+                    e
+                );
             } else {
                 tracing::info!("Terminate message sent");
             }
 
             // Close the WebSocket writer
             if let Err(e) = write.close().await {
-                tracing::debug!("Failed to close WebSocket writer (expected if stopped): {}", e);
+                tracing::debug!(
+                    "Failed to close WebSocket writer (expected if stopped): {}",
+                    e
+                );
             } else {
                 tracing::info!("WebSocket writer closed cleanly");
             }

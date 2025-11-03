@@ -73,7 +73,11 @@ pub async fn create_recording(
     db: State<'_, Database>,
     request: CreateRecordingRequest,
 ) -> Result<Recording, String> {
-    tracing::info!("Creating recording: {} in project: {}", request.name, request.project_id);
+    tracing::info!(
+        "Creating recording: {} in project: {}",
+        request.name,
+        request.project_id
+    );
 
     let mut recording = Recording::new(
         request.project_id,
@@ -158,7 +162,9 @@ pub async fn generate_recording_summary(
 
     // Generate summary using the summary service
     let summary_service = crate::transcription::summary::SummaryService::new(claude_api_key);
-    let summary = summary_service.summarize(transcript_text, chunk_count).await?;
+    let summary = summary_service
+        .summarize(transcript_text, chunk_count)
+        .await?;
 
     // Update recording with summary
     recording.summary = Some(summary.summary);
@@ -166,7 +172,13 @@ pub async fn generate_recording_summary(
     recording.action_items = summary.action_items;
 
     // Save updated recording
-    db.update_recording_summary(&recording_id, recording.summary.clone(), recording.key_points.clone(), recording.action_items.clone()).await?;
+    db.update_recording_summary(
+        &recording_id,
+        recording.summary.clone(),
+        recording.key_points.clone(),
+        recording.action_items.clone(),
+    )
+    .await?;
 
     Ok(recording)
 }

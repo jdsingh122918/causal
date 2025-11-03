@@ -220,11 +220,19 @@ async function startTranscription() {
     return;
   }
 
+  // Get current project ID (null if no project selected)
+  const projectId = currentProject ? currentProject.id : null;
+
   try {
     statusIndicator.textContent = "Starting...";
     statusIndicator.className = "status connecting";
 
-    await invoke("start_transcription", { deviceId, apiKey, claudeApiKey });
+    await invoke("start_transcription", {
+      deviceId,
+      apiKey,
+      claudeApiKey,
+      projectId,
+    });
 
     isRecording = true; // Mark as recording
     startBtn.disabled = true;
@@ -672,6 +680,9 @@ async function loadProjects() {
     // If we have a current project, reload its recordings
     if (currentProject) {
       await loadRecordings(currentProject.id);
+    } else if (projects.length > 0) {
+      // Auto-select the first project if none is selected
+      await selectProject(projects[0]);
     }
   } catch (error) {
     console.error("Failed to load projects:", error);

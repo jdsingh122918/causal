@@ -105,6 +105,7 @@ let recordingsEmptyState: HTMLElement;
 let recordingCount: HTMLElement;
 let newProjectDialog: HTMLElement;
 let saveRecordingDialog: HTMLElement;
+let settingsDialog: HTMLElement;
 let recordingDetailView: HTMLElement;
 
 // State
@@ -1068,6 +1069,20 @@ function hideSaveRecordingDialog() {
   saveRecordingDialog.style.display = "none";
 }
 
+function showSettingsDialog() {
+  settingsDialog.style.display = "flex";
+}
+
+function hideSettingsDialog() {
+  settingsDialog.style.display = "none";
+}
+
+function handleSaveSettings() {
+  // Settings are auto-saved since they're bound to the same inputs
+  // Just close the dialog
+  hideSettingsDialog();
+}
+
 async function handleSaveRecording() {
   if (!currentProject) {
     alert("No project selected");
@@ -1139,6 +1154,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   recordingCount = document.querySelector("#recording-count")!;
   newProjectDialog = document.querySelector("#new-project-dialog")!;
   saveRecordingDialog = document.querySelector("#save-recording-dialog")!;
+  settingsDialog = document.querySelector("#settings-dialog")!;
   recordingDetailView = document.querySelector("#recording-detail-view")!;
 
   // Load audio devices and projects
@@ -1195,6 +1211,20 @@ window.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("close-save-dialog")!
     .addEventListener("click", hideSaveRecordingDialog);
+
+  // Settings dialog
+  document
+    .getElementById("settings-btn")!
+    .addEventListener("click", showSettingsDialog);
+  document
+    .getElementById("save-settings-btn")!
+    .addEventListener("click", handleSaveSettings);
+  document
+    .getElementById("cancel-settings-btn")!
+    .addEventListener("click", hideSettingsDialog);
+  document
+    .getElementById("close-settings-dialog")!
+    .addEventListener("click", hideSettingsDialog);
 
   // Recording detail view
   document

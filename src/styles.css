@@ -905,6 +905,8 @@ button:disabled {
 }
 
 .form-group input[type="text"],
+.form-group input[type="password"],
+.form-group select,
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
@@ -917,9 +919,28 @@ button:disabled {
 }
 
 .form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
+.form-group select:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: #396cd8;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.form-group small a {
+  color: #396cd8;
+  text-decoration: none;
+}
+
+.form-group small a:hover {
+  text-decoration: underline;
 }
 
 .form-group textarea {
@@ -1146,10 +1167,20 @@ button:disabled {
   }
 
   .form-group input[type="text"],
+  .form-group input[type="password"],
+  .form-group select,
   .form-group textarea {
     background-color: #1a1a1a;
     border-color: #444;
     color: #f6f6f6;
+  }
+
+  .form-group small {
+    color: #999;
+  }
+
+  .form-group small a {
+    color: #5d8af0;
   }
 
   .recording-preview {

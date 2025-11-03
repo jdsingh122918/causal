@@ -46,31 +46,6 @@
       <div id="recording-tab" class="tab-content active">
         <div class="transcription-controls">
           <div class="control-group">
-            <label for="device-select">Audio Device:</label>
-            <select id="device-select">
-              <option value="">Loading devices...</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="api-key-input">AssemblyAI API Key:</label>
-            <input
-              type="password"
-              id="api-key-input"
-              placeholder="Enter your API key"
-            />
-          </div>
-
-          <div class="control-group">
-            <label for="claude-api-key-input">Claude API Key (for summary):</label>
-            <input
-              type="password"
-              id="claude-api-key-input"
-              placeholder="Enter your Claude API key"
-            />
-          </div>
-
-          <div class="control-group">
             <button id="start-btn" class="btn-primary">Start Recording</button>
             <button id="stop-btn" class="btn-danger" disabled>Stop Recording</button>
             <span id="status-indicator" class="status">Ready</span>
@@ -297,6 +272,51 @@
         <div class="detail-section" id="detail-action-items-section" style="display: none;">
           <h3>Action Items</h3>
           <ul id="detail-action-items" class="detail-action-items"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Dialog -->
+    <div id="settings-dialog" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>⚙️ Settings</h2>
+          <button class="modal-close" id="close-settings-dialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="device-select">Audio Device *</label>
+            <select id="device-select">
+              <option value="">Loading devices...</option>
+            </select>
+            <small>Select the microphone or audio input device for recording</small>
+          </div>
+
+          <div class="form-group">
+            <label for="api-key-input">AssemblyAI API Key *</label>
+            <input
+              type="password"
+              id="api-key-input"
+              placeholder="Enter your AssemblyAI API key"
+            />
+            <small>Required for real-time speech-to-text transcription. Get your key at <a href="https://www.assemblyai.com" target="_blank">assemblyai.com</a></small>
+          </div>
+
+          <div class="form-group">
+            <label for="claude-api-key-input">Claude API Key (Optional)</label>
+            <input
+              type="password"
+              id="claude-api-key-input"
+              placeholder="Enter your Claude API key"
+            />
+            <small>Optional. Required for AI-enhanced transcripts and summaries. Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></small>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="cancel-settings-btn" class="btn-secondary">Cancel</button>
+          <button id="save-settings-btn" class="btn-primary">Save Settings</button>
         </div>
       </div>
     </div>

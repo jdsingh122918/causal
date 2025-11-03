@@ -1,7 +1,9 @@
 mod database;
+mod logging;
 mod transcription;
 
 use database::Database;
+use tauri::Manager;
 use transcription::commands::AppState;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -12,10 +14,16 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    // Initialize logging with fallback directory
+    // Use platform-appropriate fallback until we have app handle
+    let fallback_log_dir = logging::get_default_log_dir();
+    let log_config = logging::LoggingConfig::default()
+        .with_log_dir(fallback_log_dir);
+
+    logging::init_logging(log_config)
+        .expect("Failed to initialize logging");
+
+    tracing::info!("Causal application starting");
 
     let database = Database::new().expect("Failed to initialize database");
 
@@ -24,6 +32,17 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // Log the actual Tauri-provided log directory for reference
+            if let Ok(tauri_log_dir) = app.path().app_log_dir() {
+                tracing::info!(
+                    tauri_log_dir = %tauri_log_dir.display(),
+                    "Tauri log directory available"
+                );
+            }
+
+            Ok(())
+        })
         .manage(AppState::default())
         .manage(database)
         .invoke_handler(tauri::generate_handler![

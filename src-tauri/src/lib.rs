@@ -17,11 +17,13 @@ pub fn run() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
+    let database = Database::new().expect("Failed to initialize database");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .manage(Database::new())
+        .manage(database)
         .invoke_handler(tauri::generate_handler![
             greet,
             transcription::list_audio_devices,

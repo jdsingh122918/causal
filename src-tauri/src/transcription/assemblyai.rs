@@ -33,7 +33,8 @@ pub struct WordResult {
 enum ServerMessage {
     Begin {
         id: String,
-        expires_at: u64, // Unix timestamp
+        #[allow(dead_code)]
+        expires_at: u64, // Unix timestamp - received but not currently used
     },
     Turn {
         turn_order: u32,

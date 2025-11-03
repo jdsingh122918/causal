@@ -40,6 +40,7 @@ pub struct SessionMetadata {
 }
 
 impl SessionMetadata {
+    #[allow(dead_code)]
     pub fn average_confidence(&self) -> f64 {
         if self.confidence_count > 0 {
             self.total_confidence / self.confidence_count as f64
@@ -48,6 +49,7 @@ impl SessionMetadata {
         }
     }
 
+    #[allow(dead_code)]
     pub fn to_recording_metadata(&self) -> RecordingMetadata {
         RecordingMetadata {
             duration_seconds: self.duration_seconds,
@@ -82,6 +84,7 @@ impl SessionData {
     }
 
     /// Add a turn to the session
+    #[allow(dead_code)]
     pub fn add_turn(&mut self, turn_order: usize, text: String, confidence: f64) {
         self.turns.push(TurnData {
             turn_order,
@@ -105,6 +108,7 @@ impl SessionData {
     }
 
     /// Add an enhanced buffer to the session
+    #[allow(dead_code)]
     pub fn add_enhanced_buffer(&mut self, buffer_id: usize, raw_text: String, enhanced_text: String) {
         self.enhanced_buffers.push(EnhancedBufferData {
             buffer_id,
@@ -122,6 +126,7 @@ impl SessionData {
     }
 
     /// Update session duration
+    #[allow(dead_code)]
     pub fn update_duration(&mut self) {
         if let Ok(elapsed) = self.start_time.elapsed() {
             self.metadata.duration_seconds = elapsed.as_secs_f64();
@@ -129,16 +134,19 @@ impl SessionData {
     }
 
     /// Update chunk count
+    #[allow(dead_code)]
     pub fn set_chunk_count(&mut self, count: usize) {
         self.metadata.chunk_count = count;
     }
 
     /// Check if session has any data
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.turns.is_empty() && self.enhanced_buffers.is_empty()
     }
 
     /// Prepare session data for saving as a recording
+    #[allow(dead_code)]
     pub fn to_recording(&self, project_id: String, name: String) -> Result<Recording, String> {
         if self.is_empty() {
             return Err("Cannot save empty recording".to_string());
@@ -187,6 +195,7 @@ impl SessionManager {
     }
 
     /// Update the current session with a turn
+    #[allow(dead_code)]
     pub async fn add_turn(&self, turn_order: usize, text: String, confidence: f64) -> Result<(), String> {
         let mut session = self.current_session.lock().await;
         match session.as_mut() {
@@ -199,6 +208,7 @@ impl SessionManager {
     }
 
     /// Update the current session with an enhanced buffer
+    #[allow(dead_code)]
     pub async fn add_enhanced_buffer(
         &self,
         buffer_id: usize,
@@ -216,6 +226,7 @@ impl SessionManager {
     }
 
     /// Update session metadata
+    #[allow(dead_code)]
     pub async fn update_metadata<F>(&self, updater: F) -> Result<(), String>
     where
         F: FnOnce(&mut SessionData),
@@ -231,12 +242,14 @@ impl SessionManager {
     }
 
     /// End the current session and return the data
+    #[allow(dead_code)]
     pub async fn end_session(&self) -> Option<SessionData> {
         let mut session = self.current_session.lock().await;
         session.take()
     }
 
     /// Check if there's an active session
+    #[allow(dead_code)]
     pub async fn has_active_session(&self) -> bool {
         let session = self.current_session.lock().await;
         session.is_some()

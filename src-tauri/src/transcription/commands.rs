@@ -86,7 +86,6 @@ pub async fn start_transcription(
     let stop_sender_state = state.stop_sender.clone();
     let audio_handle_state = state.audio_handle.clone();
     let chunk_sender_state = state.chunk_sender.clone();
-    let session_manager = state.session_manager.clone();
 
     // Store stop sender and chunk sender
     *state.stop_sender.lock().await = Some(stop_tx.clone());

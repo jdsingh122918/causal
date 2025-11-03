@@ -92,11 +92,6 @@ interface SaveRecordingRequest {
   metadata: RecordingMetadata;
 }
 
-interface DatabaseStats {
-  project_count: number;
-  recording_count: number;
-}
-
 // UI Elements
 let deviceSelect: HTMLSelectElement;
 let apiKeyInput: HTMLInputElement;
@@ -111,6 +106,17 @@ let clearBtn: HTMLButtonElement;
 // Tab elements
 let tabButtons: NodeListOf<HTMLButtonElement>;
 let tabContents: NodeListOf<HTMLDivElement>;
+
+// Multi-project UI elements
+let projectsList: HTMLElement;
+let newProjectBtn: HTMLButtonElement;
+let currentProjectIndicator: HTMLElement;
+let recordingsList: HTMLElement;
+let recordingsEmptyState: HTMLElement;
+let recordingCount: HTMLElement;
+let newProjectDialog: HTMLElement;
+let saveRecordingDialog: HTMLElement;
+let recordingDetailView: HTMLElement;
 
 // State
 let transcriptText = "";
@@ -297,9 +303,21 @@ async function stopTranscription() {
       statusIndicator.textContent = "Ready";
       statusIndicator.className = "status";
       if (!claudeApiKey) {
-        alert(
-          "Claude API key not provided. Summary not generated. Add your Claude API key to see summaries.",
+        console.log(
+          "Claude API key not provided. Skipping summary generation.",
         );
+      }
+    }
+
+    // Show save recording dialog if we have a project selected and content
+    if (currentProject && transcriptText.trim()) {
+      showSaveRecordingDialog();
+    } else if (!currentProject) {
+      const shouldCreateProject = confirm(
+        "No project selected. Would you like to create a project to save this recording?",
+      );
+      if (shouldCreateProject) {
+        showNewProjectDialog();
       }
     }
   } catch (error) {
@@ -369,6 +387,9 @@ async function generateSummary(claudeApiKey: string) {
 }
 
 function displaySummary(summary: TranscriptSummary, fullTranscript: string) {
+  // Store summary for later use
+  lastSummary = summary;
+
   // Metadata
   const durationMins = Math.round(summary.metadata.duration_seconds / 60);
   document.getElementById("summary-duration")!.textContent =
@@ -652,6 +673,444 @@ function newRecording() {
   document.getElementById("summary-placeholder")!.style.display = "block";
 }
 
+// ===== PROJECT MANAGEMENT FUNCTIONS =====
+
+async function loadProjects() {
+  try {
+    projects = await invoke<Project[]>("list_projects");
+    renderProjects();
+
+    // If we have a current project, reload its recordings
+    if (currentProject) {
+      await loadRecordings(currentProject.id);
+    }
+  } catch (error) {
+    console.error("Failed to load projects:", error);
+    alert(`Failed to load projects: ${error}`);
+  }
+}
+
+function renderProjects() {
+  if (projects.length === 0) {
+    projectsList.innerHTML =
+      '<div class="empty-state"><p>No projects yet.<br>Click + to create one!</p></div>';
+    return;
+  }
+
+  projectsList.innerHTML = "";
+  projects.forEach((project) => {
+    const projectEl = document.createElement("div");
+    projectEl.className = "project-item";
+    if (currentProject && currentProject.id === project.id) {
+      projectEl.classList.add("active");
+    }
+    projectEl.dataset.projectId = project.id;
+
+    projectEl.innerHTML = `
+      <div class="project-icon">📁</div>
+      <div class="project-info">
+        <div class="project-name">${escapeHtml(project.name)}</div>
+        <div class="project-meta">${project.description || "No description"}</div>
+      </div>
+    `;
+
+    projectEl.addEventListener("click", () => selectProject(project));
+    projectsList.appendChild(projectEl);
+  });
+}
+
+async function selectProject(project: Project) {
+  currentProject = project;
+
+  // Update current project in backend
+  await invoke("set_current_project", { projectId: project.id });
+
+  // Update UI
+  renderProjects();
+  updateCurrentProjectIndicator();
+
+  // Load recordings for this project
+  await loadRecordings(project.id);
+}
+
+function updateCurrentProjectIndicator() {
+  const label = currentProjectIndicator.querySelector(".project-label")!;
+  if (currentProject) {
+    label.textContent = `Project: ${currentProject.name}`;
+  } else {
+    label.textContent = "No project selected";
+  }
+}
+
+async function createProject(name: string, description: string) {
+  try {
+    const request: CreateProjectRequest = { name, description };
+    const project = await invoke<Project>("create_project", { request });
+
+    await loadProjects();
+    await selectProject(project);
+
+    return project;
+  } catch (error) {
+    console.error("Failed to create project:", error);
+    throw error;
+  }
+}
+
+// ===== RECORDING MANAGEMENT FUNCTIONS =====
+
+async function loadRecordings(projectId: string) {
+  try {
+    recordings = await invoke<Recording[]>("list_recordings", { projectId });
+    renderRecordings();
+  } catch (error) {
+    console.error("Failed to load recordings:", error);
+    alert(`Failed to load recordings: ${error}`);
+  }
+}
+
+function renderRecordings() {
+  recordingCount.textContent = `${recordings.length} recording${recordings.length !== 1 ? "s" : ""}`;
+
+  if (recordings.length === 0) {
+    recordingsEmptyState.style.display = "block";
+    recordingsList.innerHTML = "";
+    return;
+  }
+
+  recordingsEmptyState.style.display = "none";
+  recordingsList.innerHTML = "";
+
+  // Sort by created_at descending (newest first)
+  const sortedRecordings = [...recordings].sort(
+    (a, b) => b.created_at - a.created_at,
+  );
+
+  sortedRecordings.forEach((recording) => {
+    const card = document.createElement("div");
+    card.className = "recording-card";
+    card.dataset.recordingId = recording.id;
+
+    const createdDate = new Date(recording.created_at * 1000); // Convert from Unix timestamp
+    const formattedDate = createdDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    card.innerHTML = `
+      <div class="recording-header">
+        <h4 class="recording-name">${escapeHtml(recording.name)}</h4>
+        <span class="recording-status status-${recording.status.toLowerCase()}">${recording.status}</span>
+      </div>
+      <div class="recording-meta">
+        <span class="meta-item">
+          <span class="meta-icon">⏱️</span>
+          ${Math.round(recording.metadata.duration_seconds)}s
+        </span>
+        <span class="meta-item">
+          <span class="meta-icon">📝</span>
+          ${recording.metadata.word_count} words
+        </span>
+        <span class="meta-item">
+          <span class="meta-icon">📅</span>
+          ${formattedDate}
+        </span>
+      </div>
+      <div class="recording-actions">
+        <button class="btn-small view-btn" data-recording-id="${recording.id}">View</button>
+        <button class="btn-small delete-btn" data-recording-id="${recording.id}">Delete</button>
+      </div>
+    `;
+
+    // Add event listeners
+    card.querySelector(".view-btn")!.addEventListener("click", (e) => {
+      e.stopPropagation();
+      viewRecording(recording.id);
+    });
+
+    card.querySelector(".delete-btn")!.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteRecording(recording.id);
+    });
+
+    card.addEventListener("click", () => viewRecording(recording.id));
+
+    recordingsList.appendChild(card);
+  });
+}
+
+async function viewRecording(recordingId: string) {
+  try {
+    const recording = await invoke<Recording>("get_recording", {
+      id: recordingId,
+    });
+    showRecordingDetail(recording);
+  } catch (error) {
+    console.error("Failed to load recording:", error);
+    alert(`Failed to load recording: ${error}`);
+  }
+}
+
+function showRecordingDetail(recording: Recording) {
+  currentRecording = recording;
+
+  // Update header
+  document.getElementById("detail-recording-name")!.textContent =
+    recording.name;
+
+  // Update metadata
+  const createdDate = new Date(recording.created_at * 1000);
+  document.getElementById("detail-metadata-duration")!.textContent =
+    `${Math.round(recording.metadata.duration_seconds)}s`;
+  document.getElementById("detail-metadata-words")!.textContent =
+    recording.metadata.word_count.toString();
+  document.getElementById("detail-metadata-turns")!.textContent =
+    recording.metadata.turn_count.toString();
+  document.getElementById("detail-metadata-created")!.textContent =
+    createdDate.toLocaleString();
+
+  // Update transcript
+  document.getElementById("detail-transcript")!.textContent =
+    recording.enhanced_transcript;
+
+  // Update summary if available
+  const summarySection = document.getElementById("detail-summary-section")!;
+  if (recording.summary) {
+    summarySection.style.display = "block";
+    document.getElementById("detail-summary")!.textContent = recording.summary;
+  } else {
+    summarySection.style.display = "none";
+  }
+
+  // Update key points if available
+  const keyPointsSection = document.getElementById(
+    "detail-key-points-section",
+  )!;
+  if (recording.key_points.length > 0) {
+    keyPointsSection.style.display = "block";
+    const keyPointsList = document.getElementById("detail-key-points")!;
+    keyPointsList.innerHTML = "";
+    recording.key_points.forEach((point) => {
+      const li = document.createElement("li");
+      li.textContent = point;
+      keyPointsList.appendChild(li);
+    });
+  } else {
+    keyPointsSection.style.display = "none";
+  }
+
+  // Update action items if available
+  const actionItemsSection = document.getElementById(
+    "detail-action-items-section",
+  )!;
+  if (recording.action_items.length > 0) {
+    actionItemsSection.style.display = "block";
+    const actionItemsList = document.getElementById("detail-action-items")!;
+    actionItemsList.innerHTML = "";
+    recording.action_items.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      actionItemsList.appendChild(li);
+    });
+  } else {
+    actionItemsSection.style.display = "none";
+  }
+
+  // Show detail view
+  recordingDetailView.style.display = "block";
+}
+
+function hideRecordingDetail() {
+  recordingDetailView.style.display = "none";
+  currentRecording = null;
+}
+
+async function deleteRecording(recordingId: string) {
+  if (!confirm("Are you sure you want to delete this recording?")) {
+    return;
+  }
+
+  try {
+    await invoke("delete_recording", { id: recordingId });
+
+    // Reload recordings for current project
+    if (currentProject) {
+      await loadRecordings(currentProject.id);
+    }
+
+    // Hide detail view if this recording is being viewed
+    if (currentRecording && currentRecording.id === recordingId) {
+      hideRecordingDetail();
+    }
+  } catch (error) {
+    console.error("Failed to delete recording:", error);
+    alert(`Failed to delete recording: ${error}`);
+  }
+}
+
+async function exportRecording(recording: Recording) {
+  const content = `RECORDING: ${recording.name}
+Created: ${new Date(recording.created_at * 1000).toLocaleString()}
+Duration: ${Math.round(recording.metadata.duration_seconds)}s
+Words: ${recording.metadata.word_count}
+
+${recording.summary ? `SUMMARY\n${recording.summary}\n\n` : ""}${
+    recording.key_points.length > 0
+      ? `KEY POINTS\n${recording.key_points.map((p: string) => `- ${p}`).join("\n")}\n\n`
+      : ""
+  }${
+    recording.action_items.length > 0
+      ? `ACTION ITEMS\n${recording.action_items.map((i: string) => `- ${i}`).join("\n")}\n\n`
+      : ""
+  }ENHANCED TRANSCRIPT
+${recording.enhanced_transcript}
+
+RAW TRANSCRIPT
+${recording.raw_transcript}
+`;
+
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${recording.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ===== MODAL DIALOG FUNCTIONS =====
+
+function showNewProjectDialog() {
+  newProjectDialog.style.display = "flex";
+  const nameInput = document.getElementById("project-name") as HTMLInputElement;
+  nameInput.value = "";
+  (
+    document.getElementById("project-description") as HTMLTextAreaElement
+  ).value = "";
+  nameInput.focus();
+}
+
+function hideNewProjectDialog() {
+  newProjectDialog.style.display = "none";
+}
+
+async function handleCreateProject() {
+  const nameInput = document.getElementById("project-name") as HTMLInputElement;
+  const descInput = document.getElementById(
+    "project-description",
+  ) as HTMLTextAreaElement;
+
+  const name = nameInput.value.trim();
+  const description = descInput.value.trim();
+
+  if (!name) {
+    alert("Please enter a project name");
+    return;
+  }
+
+  try {
+    await createProject(name, description);
+    hideNewProjectDialog();
+  } catch (error) {
+    alert(`Failed to create project: ${error}`);
+  }
+}
+
+function showSaveRecordingDialog() {
+  if (!currentProject) {
+    alert("Please select a project first");
+    return;
+  }
+
+  saveRecordingDialog.style.display = "flex";
+
+  // Pre-fill preview
+  document.getElementById("preview-project")!.textContent = currentProject.name;
+  document.getElementById("preview-duration")!.textContent = Math.round(
+    latestTurnOrder * 10,
+  ).toString(); // Estimate
+  document.getElementById("preview-words")!.textContent = transcriptText
+    .split(" ")
+    .length.toString();
+  document.getElementById("preview-turns")!.textContent =
+    latestTurnOrder.toString();
+
+  // Focus name input
+  const nameInput = document.getElementById(
+    "recording-name",
+  ) as HTMLInputElement;
+  const now = new Date();
+  nameInput.value = `Recording ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+  nameInput.select();
+}
+
+function hideSaveRecordingDialog() {
+  saveRecordingDialog.style.display = "none";
+}
+
+async function handleSaveRecording() {
+  if (!currentProject) {
+    alert("No project selected");
+    return;
+  }
+
+  const nameInput = document.getElementById(
+    "recording-name",
+  ) as HTMLInputElement;
+  const name = nameInput.value.trim();
+
+  if (!name) {
+    alert("Please enter a recording name");
+    return;
+  }
+
+  try {
+    // Build metadata
+    const metadata: RecordingMetadata = {
+      duration_seconds: latestTurnOrder * 10, // Estimate
+      word_count: transcriptText.split(" ").length,
+      chunk_count: enhancedBuffers.size,
+      turn_count: latestTurnOrder,
+      average_confidence: 0.95, // Placeholder
+    };
+
+    // Build enhanced transcript from buffers
+    const enhancedTranscript = Array.from(enhancedBuffers.values()).join(" ");
+
+    const request: SaveRecordingRequest = {
+      project_id: currentProject.id,
+      name,
+      raw_transcript: transcriptText,
+      enhanced_transcript: enhancedTranscript || transcriptText,
+      summary: lastSummary?.summary || null,
+      key_points: lastSummary?.key_points || [],
+      action_items: lastSummary?.action_items || [],
+      metadata,
+    };
+
+    await invoke("save_recording", { request });
+
+    hideSaveRecordingDialog();
+
+    // Reload recordings
+    await loadRecordings(currentProject.id);
+
+    alert("Recording saved successfully!");
+  } catch (error) {
+    console.error("Failed to save recording:", error);
+    alert(`Failed to save recording: ${error}`);
+  }
+}
+
+// Utility function to escape HTML
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   // Get DOM elements
   deviceSelect = document.querySelector("#device-select")!;
@@ -667,8 +1126,22 @@ window.addEventListener("DOMContentLoaded", async () => {
   tabButtons = document.querySelectorAll(".tab-button");
   tabContents = document.querySelectorAll(".tab-content");
 
-  // Load audio devices
+  // Multi-project UI elements
+  projectsList = document.querySelector("#projects-list")!;
+  newProjectBtn = document.querySelector("#new-project-btn")!;
+  currentProjectIndicator = document.querySelector(
+    "#current-project-indicator",
+  )!;
+  recordingsList = document.querySelector("#recordings-list")!;
+  recordingsEmptyState = document.querySelector("#recordings-empty-state")!;
+  recordingCount = document.querySelector("#recording-count")!;
+  newProjectDialog = document.querySelector("#new-project-dialog")!;
+  saveRecordingDialog = document.querySelector("#save-recording-dialog")!;
+  recordingDetailView = document.querySelector("#recording-detail-view")!;
+
+  // Load audio devices and projects
   await loadAudioDevices();
+  await loadProjects();
 
   // Add event listeners for tabs
   tabButtons.forEach((btn) => {
@@ -697,6 +1170,63 @@ window.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("new-recording-btn")!
     .addEventListener("click", newRecording);
+
+  // Project management
+  newProjectBtn.addEventListener("click", showNewProjectDialog);
+  document
+    .getElementById("create-project-btn")!
+    .addEventListener("click", handleCreateProject);
+  document
+    .getElementById("cancel-project-btn")!
+    .addEventListener("click", hideNewProjectDialog);
+  document
+    .getElementById("close-project-dialog")!
+    .addEventListener("click", hideNewProjectDialog);
+
+  // Save recording dialog
+  document
+    .getElementById("confirm-save-btn")!
+    .addEventListener("click", handleSaveRecording);
+  document
+    .getElementById("cancel-save-btn")!
+    .addEventListener("click", hideSaveRecordingDialog);
+  document
+    .getElementById("close-save-dialog")!
+    .addEventListener("click", hideSaveRecordingDialog);
+
+  // Recording detail view
+  document
+    .getElementById("back-to-list-btn")!
+    .addEventListener("click", hideRecordingDetail);
+  document
+    .getElementById("detail-export-btn")!
+    .addEventListener("click", () => {
+      if (currentRecording) {
+        exportRecording(currentRecording);
+      }
+    });
+  document
+    .getElementById("detail-delete-btn")!
+    .addEventListener("click", async () => {
+      if (currentRecording) {
+        await deleteRecording(currentRecording.id);
+      }
+    });
+
+  // Allow Enter key to submit dialogs
+  document.getElementById("project-name")!.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      handleCreateProject();
+    }
+  });
+
+  document
+    .getElementById("recording-name")!
+    .addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        handleSaveRecording();
+      }
+    });
 
   // Listen for transcript events (turn-based from Universal Streaming)
   await listen<TranscriptResult>("transcript", (event) => {

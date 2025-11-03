@@ -127,21 +127,6 @@ Enhanced transcription:"#,
             model_used: self.model.clone(),
         })
     }
-
-    /// Process multiple buffers concurrently (with rate limiting)
-    pub async fn enhance_batch(
-        &self,
-        buffers: Vec<TranscriptionBuffer>,
-    ) -> Vec<Result<EnhancedTranscript, String>> {
-        use futures_util::future::join_all;
-
-        let tasks: Vec<_> = buffers
-            .into_iter()
-            .map(|buffer| self.enhance(buffer))
-            .collect();
-
-        join_all(tasks).await
-    }
 }
 
 #[cfg(test)]

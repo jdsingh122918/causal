@@ -3,5 +3,5 @@ pub mod models;
 pub mod store;
 
 pub use commands::*;
-pub use models::{Project, Recording, RecordingMetadata, RecordingStatus};
+pub use models::{Recording, RecordingMetadata};
 pub use store::Database;

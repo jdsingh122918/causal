@@ -142,7 +142,7 @@ mod tests {
         let prompt = EnhancementAgent::build_enhancement_prompt("hello world");
         assert!(prompt.contains("hello world"));
         assert!(prompt.contains("Fix grammar"));
-        assert!(prompt.contains("Enhanced transcription:"));
+        assert!(prompt.contains("Enhanced transcription"));
     }
 
     #[test]

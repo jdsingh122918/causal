@@ -46,7 +46,9 @@ impl Database {
     }
 
     fn init_schema(&self) -> Result<(), String> {
-        let conn = self.connection.blocking_lock();
+        // Try to get lock - works in both sync and async contexts
+        let conn = self.connection.try_lock()
+            .map_err(|_| "Failed to acquire lock for schema initialization".to_string())?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS projects (

@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_buffer_should_flush() {
         let buffer = TranscriptionBuffer::new(1);
-        // New buffer should not flush immediately
-        assert!(!buffer.should_flush());
+        // New buffer should not flush immediately (using 10 second threshold)
+        assert!(!buffer.should_flush(10));
     }
 }

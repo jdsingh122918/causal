@@ -2,6 +2,8 @@ use tracing::field::{Field, Visit};
 use std::fmt;
 
 /// Redacts sensitive fields in log messages based on field name
+/// Future: Phase 2 - integrate with custom log formatter
+#[allow(dead_code)]
 pub fn redact_sensitive_field(field_name: &str, value: &str) -> String {
     match field_name {
         // API keys - show first 8 chars only
@@ -31,6 +33,8 @@ pub fn redact_sensitive_field(field_name: &str, value: &str) -> String {
 }
 
 /// Visitor for redacting sensitive fields during logging
+/// Future: Phase 2 - integrate with custom tracing subscriber
+#[allow(dead_code)]
 pub struct RedactingVisitor<'a> {
     pub writer: &'a mut dyn fmt::Write,
     pub redact: bool,

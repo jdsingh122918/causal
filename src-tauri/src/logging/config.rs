@@ -5,8 +5,11 @@ use tracing::Level;
 pub struct LoggingConfig {
     pub log_dir: PathBuf,
     pub max_level: Level,
+    #[allow(dead_code)] // Future: allow runtime toggling of console output
     pub enable_console: bool,
+    #[allow(dead_code)] // Future: allow disabling file logging
     pub enable_file: bool,
+    #[allow(dead_code)] // Future: allow runtime format selection
     pub enable_json: bool,
     pub privacy_mode: PrivacyMode,
 }
@@ -15,6 +18,7 @@ pub struct LoggingConfig {
 pub enum PrivacyMode {
     Full,      // Log everything (development)
     Redacted,  // Redact PII, API keys, transcripts (production default)
+    #[allow(dead_code)] // Future: Phase 3 - minimal logging mode
     Minimal,   // Only errors and critical events
 }
 

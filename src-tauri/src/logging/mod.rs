@@ -1,8 +1,14 @@
 mod config;
 mod privacy;
+pub mod metrics;
+pub mod commands;
 
 #[allow(unused_imports)] // PrivacyMode used in tests and public API
 pub use config::{LoggingConfig, PrivacyMode};
+pub use metrics::{MetricsCollector, MetricsSnapshot};
+#[allow(unused_imports)] // TimedOperation used in instrumentation
+pub use metrics::TimedOperation;
+pub use commands::{LogEntry, LogFileInfo, LoggingStats};
 
 use tracing_subscriber::{fmt, EnvFilter};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};

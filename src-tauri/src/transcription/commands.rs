@@ -1,3 +1,4 @@
+use crate::logging::MetricsCollector;
 use crate::transcription::{
     assemblyai::{self, AssemblyAIClient},
     audio,
@@ -10,6 +11,7 @@ use crate::transcription::{
 use cpal::traits::DeviceTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::{mpsc, Mutex};
 
@@ -26,6 +28,8 @@ pub struct AppState {
     pub chunk_sender: Arc<Mutex<Option<mpsc::Sender<Vec<i16>>>>>,
     pub session_manager: SessionManager,
     pub current_project_id: Arc<Mutex<Option<String>>>,
+    pub session_start_time: Arc<Mutex<Option<Instant>>>,
+    pub metrics: Arc<MetricsCollector>,
 }
 
 impl Default for AppState {
@@ -37,16 +41,20 @@ impl Default for AppState {
             chunk_sender: Arc::new(Mutex::new(None)),
             session_manager: SessionManager::new(),
             current_project_id: Arc::new(Mutex::new(None)),
+            session_start_time: Arc::new(Mutex::new(None)),
+            metrics: Arc::new(MetricsCollector::new()),
         }
     }
 }
 
+#[tracing::instrument]
 #[tauri::command]
 pub async fn list_audio_devices() -> Result<Vec<audio::AudioDevice>, String> {
     tracing::info!("Listing audio devices");
     audio::list_audio_devices()
 }
 
+#[tracing::instrument(skip(app, state, api_key, claude_api_key))]
 #[tauri::command]
 pub async fn start_transcription(
     app: AppHandle,
@@ -64,6 +72,9 @@ pub async fn start_transcription(
         project_id,
         refinement_cfg.mode
     );
+
+    // Track metrics
+    state.metrics.transcription_session_started();
 
     // Check if already active
     let mut is_active = state.transcription_active.lock().await;
@@ -101,6 +112,9 @@ pub async fn start_transcription(
     *state.chunk_sender.lock().await = Some(chunk_tx.clone());
     *is_active = true;
     drop(is_active); // Release the lock
+
+    // Track session start time
+    *state.session_start_time.lock().await = Some(Instant::now());
 
     // Start a new session
     state
@@ -329,6 +343,7 @@ pub async fn start_transcription(
     Ok(())
 }
 
+#[tracing::instrument(skip(state))]
 #[tauri::command]
 pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String> {
     tracing::info!("Stopping transcription");
@@ -339,6 +354,11 @@ pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String
         tracing::info!("Transcription already stopped");
         return Ok(()); // Return success, not an error
     }
+
+    // Get session duration and word count for metrics
+    let start_time = state.session_start_time.lock().await.take();
+    let session_data = state.session_manager.get_session().await;
+    let word_count = session_data.map(|s| s.metadata.word_count).unwrap_or(0);
 
     // CRITICAL FIX: Drop the chunk_tx sender FIRST to close the channel
     // This signals the WebSocket write task to terminate properly
@@ -371,6 +391,12 @@ pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String
 
     // Mark as inactive
     *state.transcription_active.lock().await = false;
+
+    // Record completion metrics
+    if let Some(start) = start_time {
+        let duration = start.elapsed();
+        state.metrics.transcription_session_completed(duration, word_count);
+    }
 
     tracing::info!("Stop signal sent - transcription fully stopped");
     Ok(())

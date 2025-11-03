@@ -81,17 +81,6 @@ interface CreateProjectRequest {
   description: string;
 }
 
-interface SaveRecordingRequest {
-  project_id: string;
-  name: string;
-  raw_transcript: string;
-  enhanced_transcript: string;
-  summary: string | null;
-  key_points: string[];
-  action_items: string[];
-  metadata: RecordingMetadata;
-}
-
 // UI Elements
 let deviceSelect: HTMLSelectElement;
 let apiKeyInput: HTMLInputElement;
@@ -1018,7 +1007,7 @@ async function handleCreateProject() {
   }
 }
 
-function showSaveRecordingDialog() {
+async function showSaveRecordingDialog() {
   if (!currentProject) {
     alert("Please select a project first");
     return;
@@ -1026,16 +1015,34 @@ function showSaveRecordingDialog() {
 
   saveRecordingDialog.style.display = "flex";
 
-  // Pre-fill preview
-  document.getElementById("preview-project")!.textContent = currentProject.name;
-  document.getElementById("preview-duration")!.textContent = Math.round(
-    latestTurnOrder * 10,
-  ).toString(); // Estimate
-  document.getElementById("preview-words")!.textContent = transcriptText
-    .split(" ")
-    .length.toString();
-  document.getElementById("preview-turns")!.textContent =
-    latestTurnOrder.toString();
+  // Get session data from backend for accurate preview
+  try {
+    const session = await invoke<any>("get_current_session");
+
+    if (session) {
+      document.getElementById("preview-project")!.textContent =
+        currentProject.name;
+      document.getElementById("preview-duration")!.textContent = Math.round(
+        session.metadata.duration_seconds,
+      ).toString();
+      document.getElementById("preview-words")!.textContent =
+        session.metadata.word_count.toString();
+      document.getElementById("preview-turns")!.textContent =
+        session.metadata.turn_count.toString();
+    } else {
+      // Fallback to frontend estimates if no session
+      document.getElementById("preview-project")!.textContent =
+        currentProject.name;
+      document.getElementById("preview-duration")!.textContent = "0";
+      document.getElementById("preview-words")!.textContent = "0";
+      document.getElementById("preview-turns")!.textContent = "0";
+    }
+  } catch (error) {
+    console.error("Failed to get session data:", error);
+    // Fallback to showing project name at least
+    document.getElementById("preview-project")!.textContent =
+      currentProject.name;
+  }
 
   // Focus name input
   const nameInput = document.getElementById(
@@ -1067,30 +1074,14 @@ async function handleSaveRecording() {
   }
 
   try {
-    // Build metadata
-    const metadata: RecordingMetadata = {
-      duration_seconds: latestTurnOrder * 10, // Estimate
-      word_count: transcriptText.split(" ").length,
-      chunk_count: enhancedBuffers.size,
-      turn_count: latestTurnOrder,
-      average_confidence: 0.95, // Placeholder
-    };
-
-    // Build enhanced transcript from buffers
-    const enhancedTranscript = Array.from(enhancedBuffers.values()).join(" ");
-
-    const request: SaveRecordingRequest = {
-      project_id: currentProject.id,
+    // Backend automatically gets session data and metadata
+    // Frontend just provides name and summary (if available)
+    await invoke("save_recording", {
       name,
-      raw_transcript: transcriptText,
-      enhanced_transcript: enhancedTranscript || transcriptText,
       summary: lastSummary?.summary || null,
-      key_points: lastSummary?.key_points || [],
-      action_items: lastSummary?.action_items || [],
-      metadata,
-    };
-
-    await invoke("save_recording", { request });
+      keyPoints: lastSummary?.key_points || [],
+      actionItems: lastSummary?.action_items || [],
+    });
 
     hideSaveRecordingDialog();
 

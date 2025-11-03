@@ -1,42 +1,50 @@
-use crate::database::{Database, Recording, RecordingMetadata};
+use crate::database::{Database, Recording};
 use crate::transcription::commands::AppState;
-use serde::{Deserialize, Serialize};
 use tauri::State;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SaveRecordingRequest {
-    pub project_id: String,
-    pub name: String,
-    pub raw_transcript: String,
-    pub enhanced_transcript: String,
-    pub summary: Option<String>,
-    pub key_points: Vec<String>,
-    pub action_items: Vec<String>,
-    pub metadata: RecordingMetadata,
-}
 
 /// Save the current transcription session as a recording
 #[tauri::command]
 pub async fn save_recording(
     db: State<'_, Database>,
-    request: SaveRecordingRequest,
+    state: State<'_, AppState>,
+    name: String,
+    summary: Option<String>,
+    key_points: Vec<String>,
+    action_items: Vec<String>,
 ) -> Result<Recording, String> {
-    tracing::info!("Saving recording: {} to project: {}", request.name, request.project_id);
+    // Get current project ID
+    let project_id = state.current_project_id.lock().await.clone()
+        .ok_or_else(|| "No project selected".to_string())?;
 
+    tracing::info!("Saving recording: {} to project: {}", name, project_id);
+
+    // Get session data from SessionManager
+    let session = state.session_manager.get_session().await
+        .ok_or_else(|| "No active session".to_string())?;
+
+    // Convert session data to recording
     let mut recording = Recording::new(
-        request.project_id,
-        request.name,
-        request.raw_transcript,
-        request.enhanced_transcript,
+        project_id,
+        name,
+        session.raw_transcript,
+        session.enhanced_transcript,
     );
 
-    recording = recording.with_metadata(request.metadata);
+    // Use metadata from session
+    recording = recording.with_metadata(session.metadata.to_recording_metadata());
 
-    if let Some(summary) = request.summary {
-        recording = recording.with_summary(summary, request.key_points, request.action_items);
+    // Add summary if provided
+    if let Some(summary_text) = summary {
+        recording = recording.with_summary(summary_text, key_points, action_items);
     }
 
-    db.create_recording(recording).await
+    // Save to database
+    let saved = db.create_recording(recording).await?;
+
+    // Clear the session after successful save
+    state.session_manager.clear_session().await;
+
+    Ok(saved)
 }
 
 /// Get the current session data

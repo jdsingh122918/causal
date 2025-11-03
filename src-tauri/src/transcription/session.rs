@@ -49,7 +49,6 @@ impl SessionMetadata {
         }
     }
 
-    #[allow(dead_code)]
     pub fn to_recording_metadata(&self) -> RecordingMetadata {
         RecordingMetadata {
             duration_seconds: self.duration_seconds,
@@ -84,7 +83,6 @@ impl SessionData {
     }
 
     /// Add a turn to the session
-    #[allow(dead_code)]
     pub fn add_turn(&mut self, turn_order: usize, text: String, confidence: f64) {
         self.turns.push(TurnData {
             turn_order,
@@ -108,7 +106,6 @@ impl SessionData {
     }
 
     /// Add an enhanced buffer to the session
-    #[allow(dead_code)]
     pub fn add_enhanced_buffer(&mut self, buffer_id: usize, raw_text: String, enhanced_text: String) {
         self.enhanced_buffers.push(EnhancedBufferData {
             buffer_id,
@@ -195,7 +192,6 @@ impl SessionManager {
     }
 
     /// Update the current session with a turn
-    #[allow(dead_code)]
     pub async fn add_turn(&self, turn_order: usize, text: String, confidence: f64) -> Result<(), String> {
         let mut session = self.current_session.lock().await;
         match session.as_mut() {
@@ -208,7 +204,6 @@ impl SessionManager {
     }
 
     /// Update the current session with an enhanced buffer
-    #[allow(dead_code)]
     pub async fn add_enhanced_buffer(
         &self,
         buffer_id: usize,

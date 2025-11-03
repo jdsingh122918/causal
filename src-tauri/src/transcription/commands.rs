@@ -86,6 +86,8 @@ pub async fn start_transcription(
     let stop_sender_state = state.stop_sender.clone();
     let audio_handle_state = state.audio_handle.clone();
     let chunk_sender_state = state.chunk_sender.clone();
+    let session_manager_transcript = state.session_manager.clone();
+    let session_manager_enhanced = state.session_manager.clone();
 
     // Store stop sender and chunk sender
     *state.stop_sender.lock().await = Some(stop_tx.clone());
@@ -146,6 +148,17 @@ pub async fn start_transcription(
                         transcript_count += 1;
                         last_transcript_time = std::time::Instant::now();
 
+                        // Track in session manager
+                        if result.is_final {
+                            if let Err(e) = session_manager_transcript.add_turn(
+                                result.turn_order as usize,
+                                result.text.clone(),
+                                result.confidence as f64
+                            ).await {
+                                tracing::error!("Failed to track turn in session: {}", e);
+                            }
+                        }
+
                         // Emit raw transcript immediately for low-latency display
                         if let Err(e) = app_for_transcripts.emit("transcript", result.clone()) {
                             tracing::error!("Failed to emit transcript event: {}", e);
@@ -186,6 +199,15 @@ pub async fn start_transcription(
                     while let Some(buffer) = buffer_rx.recv().await {
                         match agent.enhance(buffer).await {
                             Ok(enhanced) => {
+                                // Track in session manager
+                                if let Err(e) = session_manager_enhanced.add_enhanced_buffer(
+                                    enhanced.buffer_id as usize,
+                                    enhanced.raw_text.clone(),
+                                    enhanced.enhanced_text.clone()
+                                ).await {
+                                    tracing::error!("Failed to track enhanced buffer in session: {}", e);
+                                }
+
                                 if let Err(e) = app_for_enhanced.emit("enhanced_transcript", enhanced) {
                                     tracing::error!("Failed to emit enhanced transcript: {}", e);
                                 }

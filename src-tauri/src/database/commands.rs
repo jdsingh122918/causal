@@ -134,6 +134,43 @@ pub async fn get_database_stats(db: State<'_, Database>) -> Result<DatabaseStats
     })
 }
 
+/// Generate or regenerate summary for an existing recording
+#[tauri::command]
+pub async fn generate_recording_summary(
+    db: State<'_, Database>,
+    recording_id: String,
+    claude_api_key: String,
+) -> Result<Recording, String> {
+    tracing::info!("Generating summary for recording: {}", recording_id);
+
+    // Get the recording
+    let mut recording = db.get_recording(&recording_id).await?;
+
+    // Use enhanced transcript if available, otherwise fall back to raw
+    let transcript_text = if !recording.enhanced_transcript.is_empty() {
+        recording.enhanced_transcript.clone()
+    } else {
+        recording.raw_transcript.clone()
+    };
+
+    // Calculate approximate chunk count from metadata
+    let chunk_count = recording.metadata.turn_count.max(1) as u32;
+
+    // Generate summary using the summary service
+    let summary_service = crate::transcription::summary::SummaryService::new(claude_api_key);
+    let summary = summary_service.summarize(transcript_text, chunk_count).await?;
+
+    // Update recording with summary
+    recording.summary = Some(summary.summary);
+    recording.key_points = summary.key_points;
+    recording.action_items = summary.action_items;
+
+    // Save updated recording
+    db.update_recording_summary(&recording_id, recording.summary.clone(), recording.key_points.clone(), recording.action_items.clone()).await?;
+
+    Ok(recording)
+}
+
 #[derive(Debug, Serialize)]
 pub struct DatabaseStats {
     pub project_count: usize,

@@ -43,6 +43,7 @@ pub fn run() {
             database::update_recording_name,
             database::delete_recording,
             database::get_database_stats,
+            database::generate_recording_summary,
             // Recording session commands
             transcription::save_recording,
             transcription::get_current_session,

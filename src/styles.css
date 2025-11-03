@@ -214,11 +214,16 @@ button:disabled {
 .transcript-display {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem;
   background-color: #f9f9f9;
   border-radius: 8px;
   font-size: 1rem;
   line-height: 1.6;
+  scroll-behavior: smooth;
+  /* Ensure scrolling works properly */
+  min-height: 0;
+  max-height: 100%;
 }
 
 .transcript-placeholder {
@@ -232,7 +237,8 @@ button:disabled {
   color: #0f0f0f;
   line-height: 1.8;
   word-wrap: break-word;
-  white-space: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .transcript-text.partial {
@@ -461,6 +467,7 @@ button:disabled {
 
 .summary-full-transcript {
   padding: 1rem;
+  padding-bottom: 1.5rem; /* Extra padding at bottom */
   background-color: #f9f9f9;
   border-radius: 8px;
   line-height: 1.8;
@@ -681,8 +688,9 @@ button:disabled {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   padding: 2rem;
+  padding-bottom: 3rem; /* Extra padding at bottom */
   background-color: #f6f6f6;
 }
 
@@ -713,7 +721,9 @@ button:disabled {
   background-color: #ffffff;
   border-radius: 12px;
   padding: 1.5rem;
+  padding-bottom: 2rem; /* Extra padding at bottom */
   margin-top: 1.5rem;
+  margin-bottom: 2rem; /* Space after the panel */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-height: 400px;
   display: flex;
@@ -746,6 +756,7 @@ button:disabled {
 .recordings-list {
   flex: 1;
   overflow-y: auto;
+  padding-bottom: 1rem; /* Extra padding at bottom */
 }
 
 .recording-card {
@@ -1015,6 +1026,7 @@ button:disabled {
   z-index: 900;
   overflow-y: auto;
   padding: 2rem;
+  padding-bottom: 3rem; /* Extra padding at bottom */
   animation: slideInRight 0.3s ease-out;
 }
 

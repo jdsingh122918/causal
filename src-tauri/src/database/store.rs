@@ -181,6 +181,26 @@ impl Database {
         Ok(recording.clone())
     }
 
+    pub async fn update_recording_summary(
+        &self,
+        id: &str,
+        summary: Option<String>,
+        key_points: Vec<String>,
+        action_items: Vec<String>,
+    ) -> Result<(), String> {
+        let mut recordings = self.recordings.write().await;
+
+        let recording = recordings
+            .get_mut(id)
+            .ok_or_else(|| "Recording not found".to_string())?;
+
+        recording.summary = summary;
+        recording.key_points = key_points;
+        recording.action_items = action_items;
+
+        Ok(())
+    }
+
     pub async fn delete_recording(&self, id: &str) -> Result<(), String> {
         let mut recordings = self.recordings.write().await;
         let mut recordings_by_project = self.recordings_by_project.write().await;

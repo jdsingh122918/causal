@@ -6,6 +6,7 @@ use crate::transcription::{
     refinement::RefinementAgent,
     session::SessionManager,
     summary,
+    RefinementConfig, RefinementMode,
 };
 use cpal::traits::DeviceTrait;
 use serde::{Deserialize, Serialize};
@@ -55,8 +56,13 @@ pub async fn start_transcription(
     api_key: String,
     claude_api_key: Option<String>,
     project_id: Option<String>,
+    refinement_config: Option<RefinementConfig>,
 ) -> Result<(), String> {
-    tracing::info!("Starting transcription for device: {} (project: {:?})", device_id, project_id);
+    let refinement_cfg = refinement_config.unwrap_or_default();
+    tracing::info!(
+        "Starting transcription for device: {} (project: {:?}, refinement: {:?})",
+        device_id, project_id, refinement_cfg.mode
+    );
 
     // Check if already active
     let mut is_active = state.transcription_active.lock().await;
@@ -115,7 +121,7 @@ pub async fn start_transcription(
 
     // Spawn task to handle transcription
     let app_clone = app.clone();
-    let enhancement_enabled = claude_api_key.is_some();
+    let enhancement_enabled = claude_api_key.is_some() && refinement_cfg.mode != RefinementMode::Disabled;
 
     // Spawn async task for streaming processing
     tokio::spawn(async move {
@@ -132,7 +138,14 @@ pub async fn start_transcription(
 
         // Handle transcript results with buffering
         let app_for_transcripts = app_clone.clone();
-        let mut buffer_manager = BufferManager::new(buffer_tx);
+
+        // Configure buffer manager based on refinement mode
+        let immediate_flush = refinement_cfg.mode == RefinementMode::Realtime;
+        let mut buffer_manager = BufferManager::new_with_config(
+            buffer_tx,
+            refinement_cfg.chunk_duration_secs,
+            immediate_flush
+        );
 
         let transcript_handle = tokio::spawn(async move {
             let mut last_transcript_time = std::time::Instant::now();
@@ -167,7 +180,10 @@ pub async fn start_transcription(
                         // Only add FINAL turns to buffer for enhancement
                         // This prevents duplicates from partial turn updates
                         if result.is_final {
+                            tracing::debug!("Adding final turn {} to buffer manager", result.turn_order);
                             buffer_manager.add_result(result.text, result.end_of_turn);
+                        } else {
+                            tracing::debug!("Received partial turn {} (skipping buffer)", result.turn_order);
                         }
                     }
                     Ok(None) => {

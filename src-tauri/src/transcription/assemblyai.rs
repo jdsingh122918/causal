@@ -165,15 +165,22 @@ impl AssemblyAIClient {
                                             .collect(),
                                     };
 
-                                    // Only log complete turns to reduce noise
+                                    // Log both partial and complete turns for debugging
+                                    let preview = if transcript.len() > 60 {
+                                        format!("{}...", &transcript[..60])
+                                    } else {
+                                        transcript.clone()
+                                    };
+
                                     if end_of_turn {
-                                        let preview = if transcript.len() > 60 {
-                                            format!("{}...", &transcript[..60])
-                                        } else {
-                                            transcript.clone()
-                                        };
                                         tracing::info!(
                                             "✓ Turn {}: \"{}\"",
+                                            turn_order,
+                                            preview
+                                        );
+                                    } else {
+                                        tracing::debug!(
+                                            "⋯ Turn {} (partial): \"{}\"",
                                             turn_order,
                                             preview
                                         );

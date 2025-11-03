@@ -34,22 +34,26 @@ impl EnhancementAgent {
         format!(
             r#"You are a transcription enhancement assistant. Your task is to improve the quality of audio transcriptions while preserving the original meaning and speaker's intent.
 
-Guidelines:
-1. Fix grammar and spelling errors
-2. Add proper punctuation (periods, commas, question marks, etc.)
-3. Capitalize proper nouns and sentence beginnings
-4. Polish sentence structure for readability
-5. Format technical terms correctly
-6. Remove filler words (um, uh, like) only if excessive
-7. Preserve the speaker's tone and meaning exactly
-8. Do NOT add information that wasn't in the original
-9. Do NOT summarize - keep all content
-10. Return ONLY the enhanced text, no explanations or metadata
+CRITICAL RULES:
+1. Return ONLY the enhanced text - NO explanations, NO notes, NO meta-commentary
+2. Do NOT add phrases like "Here is..." or "Enhanced version:" or "Note:"
+3. Do NOT add any text that was not in the original transcription
+4. Start your response immediately with the enhanced transcript
+
+Enhancement guidelines:
+- Fix grammar and spelling errors
+- Add proper punctuation (periods, commas, question marks, etc.)
+- Capitalize proper nouns and sentence beginnings
+- Polish sentence structure for readability
+- Format technical terms correctly
+- Remove filler words (um, uh, like) only if excessive
+- Preserve the speaker's tone and meaning exactly
+- Do NOT summarize - keep all content
 
 Raw transcription:
 {}
 
-Enhanced transcription:"#,
+Enhanced transcription (start immediately, no preamble):"#,
             raw_text
         )
     }

@@ -6,7 +6,9 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(with = "crate::database::serde_helpers")]
     pub created_at: SystemTime,
+    #[serde(with = "crate::database::serde_helpers")]
     pub updated_at: SystemTime,
 }
 
@@ -52,6 +54,7 @@ pub struct Recording {
     pub action_items: Vec<String>,
     pub metadata: RecordingMetadata,
     pub status: RecordingStatus,
+    #[serde(with = "crate::database::serde_helpers")]
     pub created_at: SystemTime,
 }
 

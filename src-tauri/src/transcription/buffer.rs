@@ -1,9 +1,6 @@
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-/// Duration of each buffer in seconds
-const BUFFER_DURATION_SECS: u64 = 10;
-
 /// Represents a buffered segment of transcription
 #[derive(Debug, Clone)]
 pub struct TranscriptionBuffer {
@@ -38,8 +35,8 @@ impl TranscriptionBuffer {
         self.end_time.duration_since(self.start_time)
     }
 
-    pub fn should_flush(&self) -> bool {
-        self.duration() >= Duration::from_secs(BUFFER_DURATION_SECS)
+    pub fn should_flush(&self, buffer_duration_secs: u64) -> bool {
+        self.duration() >= Duration::from_secs(buffer_duration_secs)
     }
 
     pub fn mark_complete(&mut self) {
@@ -47,19 +44,33 @@ impl TranscriptionBuffer {
     }
 }
 
-/// Manages buffering of transcription results into 10-second chunks
+/// Manages buffering of transcription results into configurable chunks
 pub struct BufferManager {
     current_buffer: Option<TranscriptionBuffer>,
     buffer_sender: mpsc::UnboundedSender<TranscriptionBuffer>,
     buffer_count: u32,
+    buffer_duration_secs: u64,
+    immediate_flush: bool, // For real-time mode
 }
 
 impl BufferManager {
+    /// Create a new buffer manager with default settings (10 second chunks)
     pub fn new(buffer_sender: mpsc::UnboundedSender<TranscriptionBuffer>) -> Self {
+        Self::new_with_config(buffer_sender, 10, false)
+    }
+
+    /// Create a new buffer manager with custom configuration
+    pub fn new_with_config(
+        buffer_sender: mpsc::UnboundedSender<TranscriptionBuffer>,
+        buffer_duration_secs: u64,
+        immediate_flush: bool,
+    ) -> Self {
         Self {
             current_buffer: None,
             buffer_sender,
             buffer_count: 0,
+            buffer_duration_secs,
+            immediate_flush,
         }
     }
 
@@ -69,6 +80,22 @@ impl BufferManager {
         // Skip empty text
         if text.trim().is_empty() {
             return false;
+        }
+
+        // For immediate flush mode (real-time), flush every turn
+        if self.immediate_flush {
+            self.buffer_count += 1;
+            tracing::debug!("Real-time mode: Creating buffer {} for immediate enhancement", self.buffer_count);
+            let mut buffer = TranscriptionBuffer::new(self.buffer_count);
+            buffer.add_text(text);
+            buffer.mark_complete();
+
+            if let Err(e) = self.buffer_sender.send(buffer) {
+                tracing::error!("Failed to send buffer: {}", e);
+                return false;
+            }
+            tracing::debug!("Buffer {} sent for enhancement", self.buffer_count);
+            return true;
         }
 
         // Create new buffer if none exists
@@ -82,7 +109,10 @@ impl BufferManager {
             buffer.add_text(text);
 
             // Check if we should flush based on time or end of turn
-            if buffer.should_flush() || (end_of_turn && buffer.duration() >= Duration::from_secs(5)) {
+            // For chunked mode, use configurable duration
+            let min_duration_for_end_of_turn = self.buffer_duration_secs / 2; // At least half the buffer duration
+            if buffer.should_flush(self.buffer_duration_secs)
+                || (end_of_turn && buffer.duration() >= Duration::from_secs(min_duration_for_end_of_turn)) {
                 return self.flush_current_buffer();
             }
         }

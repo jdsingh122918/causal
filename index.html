@@ -228,6 +228,7 @@
         <button id="back-to-list-btn" class="btn-back">← Back</button>
         <h2 id="detail-recording-name"></h2>
         <div class="detail-actions">
+          <button id="detail-generate-summary-btn" class="btn-small btn-primary" style="display: none;">Generate Summary</button>
           <button id="detail-export-btn" class="btn-small">Export</button>
           <button id="detail-rename-btn" class="btn-small">Rename</button>
           <button id="detail-delete-btn" class="btn-small btn-danger">Delete</button>
@@ -311,6 +312,38 @@
               placeholder="Enter your Claude API key"
             />
             <small>Optional. Required for AI-enhanced transcripts and summaries. Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></small>
+          </div>
+
+          <div class="form-group">
+            <label>AI Refinement Mode</label>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                <input type="radio" name="refinement-mode" value="disabled" id="refinement-disabled" />
+                <span>Disabled - Show raw transcription only</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                <input type="radio" name="refinement-mode" value="realtime" id="refinement-realtime" />
+                <span>Real-time - Refine each turn immediately</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                <input type="radio" name="refinement-mode" value="chunked" id="refinement-chunked" checked />
+                <span>Chunked - Buffer then refine (recommended)</span>
+              </label>
+            </div>
+            <small>Choose how AI enhances your transcripts. Requires Claude API key.</small>
+          </div>
+
+          <div class="form-group" id="chunk-duration-group">
+            <label for="chunk-duration-input">Chunk Duration (seconds)</label>
+            <input
+              type="number"
+              id="chunk-duration-input"
+              min="5"
+              max="30"
+              value="10"
+              step="1"
+            />
+            <small>How long to buffer before refining (5-30 seconds). Only applies to Chunked mode.</small>
           </div>
         </div>
 

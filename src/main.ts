@@ -82,6 +82,14 @@ interface CreateProjectRequest {
   description: string;
 }
 
+// Refinement configuration
+type RefinementMode = "disabled" | "realtime" | "chunked";
+
+interface RefinementConfig {
+  mode: RefinementMode;
+  chunk_duration_secs: number;
+}
+
 // UI Elements
 let deviceSelect: HTMLSelectElement;
 let apiKeyInput: HTMLInputElement;
@@ -92,6 +100,11 @@ let statusIndicator: HTMLElement;
 let transcriptDisplay: HTMLElement;
 let copyBtn: HTMLButtonElement;
 let clearBtn: HTMLButtonElement;
+
+// Refinement settings UI
+let refinementModeRadios: NodeListOf<HTMLInputElement>;
+let chunkDurationInput: HTMLInputElement;
+let chunkDurationGroup: HTMLElement;
 
 // Tab elements
 let tabButtons: NodeListOf<HTMLButtonElement>;
@@ -207,6 +220,19 @@ async function startTranscription() {
   // Get current project ID (null if no project selected)
   const projectId = currentProject ? currentProject.id : null;
 
+  // Get refinement config
+  const refinementMode =
+    ((
+      document.querySelector(
+        'input[name="refinement-mode"]:checked',
+      ) as HTMLInputElement
+    )?.value as RefinementMode) || "chunked";
+
+  const refinementConfig: RefinementConfig = {
+    mode: refinementMode,
+    chunk_duration_secs: parseInt(chunkDurationInput.value) || 10,
+  };
+
   try {
     statusIndicator.textContent = "Starting...";
     statusIndicator.className = "status connecting";
@@ -216,6 +242,7 @@ async function startTranscription() {
       apiKey,
       claudeApiKey,
       projectId,
+      refinementConfig,
     });
 
     isRecording = true; // Mark as recording
@@ -353,7 +380,6 @@ async function generateSummary(claudeApiKey: string) {
     statusIndicator.className = "status";
   } catch (error) {
     console.error("Failed to generate summary:", error);
-    alert(`Failed to generate summary: ${error}`);
 
     // Show placeholder
     summaryLoading.style.display = "none";
@@ -364,6 +390,24 @@ async function generateSummary(claudeApiKey: string) {
 
     // Switch back to recording tab
     switchTab("recording");
+
+    // Show user-friendly error with retry instructions
+    const errorMsg = String(error);
+    if (errorMsg.includes("502") || errorMsg.includes("Bad Gateway")) {
+      alert(
+        `Summary generation failed due to a temporary server error (502 Bad Gateway).\n\n` +
+          `Don't worry - your recording will be saved! You can generate the summary later by:\n` +
+          `1. Saving the recording when prompted\n` +
+          `2. Opening it from the Recording History\n` +
+          `3. Clicking "Generate Summary" button\n\n` +
+          `This often happens when Claude's servers are busy. Please try again in a few moments.`,
+      );
+    } else {
+      alert(
+        `Failed to generate summary: ${error}\n\n` +
+          `Your recording will still be saved. You can generate the summary later from the Recording History.`,
+      );
+    }
   }
 }
 
@@ -921,6 +965,16 @@ function showRecordingDetail(recording: Recording) {
   document.getElementById("detail-transcript")!.textContent =
     recording.enhanced_transcript;
 
+  // Show/hide Generate Summary button based on whether summary exists
+  const generateSummaryBtn = document.getElementById(
+    "detail-generate-summary-btn",
+  )! as HTMLButtonElement;
+  if (!recording.summary || recording.summary.trim() === "") {
+    generateSummaryBtn.style.display = "inline-block";
+  } else {
+    generateSummaryBtn.style.display = "none";
+  }
+
   // Update summary if available
   const summarySection = document.getElementById("detail-summary-section")!;
   if (recording.summary) {
@@ -993,6 +1047,54 @@ async function deleteRecording(recordingId: string) {
   } catch (error) {
     console.error("Failed to delete recording:", error);
     alert(`Failed to delete recording: ${error}`);
+  }
+}
+
+async function generateSummaryForRecording(recordingId: string) {
+  const claudeApiKey = claudeApiKeyInput.value.trim();
+
+  if (!claudeApiKey) {
+    alert(
+      "Please enter your Claude API key in Settings to generate summaries.",
+    );
+    showSettingsDialog();
+    return;
+  }
+
+  const generateBtn = document.getElementById(
+    "detail-generate-summary-btn",
+  )! as HTMLButtonElement;
+
+  try {
+    // Disable button and show loading state
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Generating...";
+
+    // Call backend to generate summary
+    const updatedRecording = await invoke<Recording>(
+      "generate_recording_summary",
+      {
+        recordingId,
+        claudeApiKey,
+      },
+    );
+
+    // Update current recording
+    currentRecording = updatedRecording;
+
+    // Refresh the detail view with updated recording
+    showRecordingDetail(updatedRecording);
+
+    alert("Summary generated successfully!");
+  } catch (error) {
+    console.error("Failed to generate summary:", error);
+    alert(
+      `Failed to generate summary: ${error}\n\nPlease try again. If the error persists, check your Claude API key and internet connection.`,
+    );
+
+    // Re-enable button
+    generateBtn.disabled = false;
+    generateBtn.textContent = "Generate Summary";
   }
 }
 
@@ -1202,6 +1304,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   settingsDialog = document.querySelector("#settings-dialog")!;
   recordingDetailView = document.querySelector("#recording-detail-view")!;
 
+  // Refinement settings UI
+  refinementModeRadios = document.querySelectorAll(
+    'input[name="refinement-mode"]',
+  );
+  chunkDurationInput = document.querySelector("#chunk-duration-input")!;
+  chunkDurationGroup = document.querySelector("#chunk-duration-group")!;
+
   // Load audio devices and projects
   await loadAudioDevices();
   await loadProjects();
@@ -1275,6 +1384,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("back-to-list-btn")!
     .addEventListener("click", hideRecordingDetail);
+  document
+    .getElementById("detail-generate-summary-btn")!
+    .addEventListener("click", async () => {
+      if (currentRecording) {
+        await generateSummaryForRecording(currentRecording.id);
+      }
+    });
   document
     .getElementById("detail-export-btn")!
     .addEventListener("click", () => {
@@ -1395,6 +1511,51 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (savedClaudeKey) {
     claudeApiKeyInput.value = savedClaudeKey;
   }
+
+  // Load refinement settings from localStorage
+  const savedRefinementMode =
+    (localStorage.getItem("refinement_mode") as RefinementMode) || "chunked";
+  const savedChunkDuration = localStorage.getItem("chunk_duration") || "10";
+
+  // Set saved values
+  const modeRadio = document.querySelector(
+    `input[name="refinement-mode"][value="${savedRefinementMode}"]`,
+  ) as HTMLInputElement;
+  if (modeRadio) {
+    modeRadio.checked = true;
+  }
+  chunkDurationInput.value = savedChunkDuration;
+
+  // Update chunk duration visibility based on mode
+  function updateChunkDurationVisibility() {
+    const selectedMode = (
+      document.querySelector(
+        'input[name="refinement-mode"]:checked',
+      ) as HTMLInputElement
+    )?.value;
+    if (selectedMode === "chunked") {
+      chunkDurationGroup.style.display = "block";
+    } else {
+      chunkDurationGroup.style.display = "none";
+    }
+  }
+
+  // Initial visibility update
+  updateChunkDurationVisibility();
+
+  // Add event listeners for refinement mode changes
+  refinementModeRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      updateChunkDurationVisibility();
+      // Save mode to localStorage
+      localStorage.setItem("refinement_mode", radio.value);
+    });
+  });
+
+  // Save chunk duration on change
+  chunkDurationInput.addEventListener("change", () => {
+    localStorage.setItem("chunk_duration", chunkDurationInput.value);
+  });
 
   // Save API keys on change
   apiKeyInput.addEventListener("change", () => {

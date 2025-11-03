@@ -706,10 +706,13 @@ function renderProjects() {
     ) as HTMLElement;
     if (deleteBtn) {
       deleteBtn.addEventListener("click", (e) => {
+        console.log("Delete button clicked for project:", project.name);
         e.stopPropagation();
         e.preventDefault();
         confirmDeleteProject(project);
       });
+    } else {
+      console.warn("Delete button not found for project:", project.name);
     }
 
     // Add project selection handler
@@ -764,23 +767,34 @@ async function createProject(name: string, description: string) {
 }
 
 function confirmDeleteProject(project: Project) {
+  console.log("confirmDeleteProject called for:", project.name);
   const recordingCount = recordings.length;
+  console.log("Recording count:", recordingCount);
+
   const message =
     recordingCount > 0
       ? `Are you sure you want to delete "${project.name}"?\n\nThis will permanently delete:\n- The project\n- ${recordingCount} recording${recordingCount !== 1 ? "s" : ""}\n\nThis action cannot be undone.`
       : `Are you sure you want to delete "${project.name}"?\n\nThis action cannot be undone.`;
 
-  if (confirm(message)) {
+  console.log("Showing confirmation dialog");
+  const confirmed = confirm(message);
+  console.log("User confirmed:", confirmed);
+
+  if (confirmed) {
     deleteProject(project.id);
   }
 }
 
 async function deleteProject(projectId: string) {
+  console.log("deleteProject called with ID:", projectId);
   try {
+    console.log("Calling backend delete_project...");
     await invoke("delete_project", { id: projectId });
+    console.log("Backend delete_project succeeded");
 
     // If the deleted project was the current project, clear it
     if (currentProject && currentProject.id === projectId) {
+      console.log("Clearing current project state");
       currentProject = null;
       recordings = [];
       updateCurrentProjectIndicator();
@@ -788,7 +802,9 @@ async function deleteProject(projectId: string) {
     }
 
     // Reload projects and auto-select first one if available
+    console.log("Reloading projects...");
     await loadProjects();
+    console.log("Projects reloaded successfully");
   } catch (error) {
     console.error("Failed to delete project:", error);
     alert(`Failed to delete project: ${error}`);

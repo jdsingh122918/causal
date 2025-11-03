@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { ask } from "@tauri-apps/plugin-dialog";
 
 interface AudioDevice {
   id: string;
@@ -766,18 +767,23 @@ async function createProject(name: string, description: string) {
   }
 }
 
-function confirmDeleteProject(project: Project) {
+async function confirmDeleteProject(project: Project) {
   console.log("confirmDeleteProject called for:", project.name);
   const recordingCount = recordings.length;
   console.log("Recording count:", recordingCount);
 
   const message =
     recordingCount > 0
-      ? `Are you sure you want to delete "${project.name}"?\n\nThis will permanently delete:\n- The project\n- ${recordingCount} recording${recordingCount !== 1 ? "s" : ""}\n\nThis action cannot be undone.`
-      : `Are you sure you want to delete "${project.name}"?\n\nThis action cannot be undone.`;
+      ? `This will permanently delete:\n- The project\n- ${recordingCount} recording${recordingCount !== 1 ? "s" : ""}\n\nThis action cannot be undone.`
+      : `This action cannot be undone.`;
 
   console.log("Showing confirmation dialog");
-  const confirmed = confirm(message);
+  const confirmed = await ask(message, {
+    title: `Delete "${project.name}"?`,
+    kind: "warning",
+    okLabel: "Delete",
+    cancelLabel: "Cancel",
+  });
   console.log("User confirmed:", confirmed);
 
   if (confirmed) {

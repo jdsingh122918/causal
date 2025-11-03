@@ -640,6 +640,9 @@ button:disabled {
   border-radius: 4px;
   transition: opacity 0.2s, background-color 0.2s;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 .project-item:hover .project-delete-btn {

@@ -700,18 +700,25 @@ function renderProjects() {
       </button>
     `;
 
+    // Add delete button handler first
+    const deleteBtn = projectEl.querySelector(
+      ".project-delete-btn",
+    ) as HTMLElement;
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        confirmDeleteProject(project);
+      });
+    }
+
+    // Add project selection handler
     projectEl.addEventListener("click", (e) => {
-      // Don't select project if clicking delete button
-      if (!(e.target as HTMLElement).closest(".project-delete-btn")) {
+      // Don't select project if clicking delete button or its children
+      const target = e.target as HTMLElement;
+      if (!target.closest(".project-delete-btn")) {
         selectProject(project);
       }
-    });
-
-    // Add delete button handler
-    const deleteBtn = projectEl.querySelector(".project-delete-btn");
-    deleteBtn?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      confirmDeleteProject(project);
     });
 
     projectsList.appendChild(projectEl);

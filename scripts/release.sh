@@ -71,10 +71,11 @@ echo "Select version bump type:"
 echo "  1) Patch   ($CURRENT_VERSION → $NEXT_PATCH) - Bug fixes"
 echo "  2) Minor   ($CURRENT_VERSION → $NEXT_MINOR) - New features, backwards compatible"
 echo "  3) Major   ($CURRENT_VERSION → $NEXT_MAJOR) - Breaking changes"
-echo "  4) Custom  - Enter a custom version"
+echo "  4) Pre-release - Release candidate, beta, or alpha"
+echo "  5) Custom  - Enter a custom version"
 echo
 
-read -p "Enter choice (1-4): " -n 1 -r CHOICE
+read -p "Enter choice (1-5): " -n 1 -r CHOICE
 echo
 echo
 
@@ -90,10 +91,38 @@ case $CHOICE in
         NEW_VERSION=$NEXT_MAJOR
         ;;
     4)
-        read -p "Enter custom version (e.g., 1.2.3): " NEW_VERSION
-        # Validate semantic version format
-        if ! [[ $NEW_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            print_error "Invalid version format. Must be MAJOR.MINOR.PATCH (e.g., 1.2.3)"
+        echo "Select pre-release type:"
+        echo "  1) RC (Release Candidate)"
+        echo "  2) Beta"
+        echo "  3) Alpha"
+        echo
+        read -p "Enter choice (1-3): " -n 1 -r PRERELEASE_CHOICE
+        echo
+
+        PRERELEASE_TYPE=""
+        case $PRERELEASE_CHOICE in
+            1) PRERELEASE_TYPE="rc" ;;
+            2) PRERELEASE_TYPE="beta" ;;
+            3) PRERELEASE_TYPE="alpha" ;;
+            *)
+                print_error "Invalid choice"
+                exit 1
+                ;;
+        esac
+
+        read -p "Enter pre-release number (e.g., 1): " PRERELEASE_NUM
+        if ! [[ $PRERELEASE_NUM =~ ^[0-9]+$ ]]; then
+            print_error "Invalid pre-release number. Must be a positive integer."
+            exit 1
+        fi
+
+        NEW_VERSION="$CURRENT_VERSION-$PRERELEASE_TYPE.$PRERELEASE_NUM"
+        ;;
+    5)
+        read -p "Enter custom version (e.g., 1.2.3 or 1.2.3-rc.1): " NEW_VERSION
+        # Validate semantic version format (with optional pre-release suffix)
+        if ! [[ $NEW_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; then
+            print_error "Invalid version format. Must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease.number (e.g., 1.2.3 or 1.2.3-rc.1)"
             exit 1
         fi
         ;;

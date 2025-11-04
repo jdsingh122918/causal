@@ -77,6 +77,6 @@ jobs:
 
             ## Auto-Updates
             The app will automatically check for updates on startup and notify you when a new version is available.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

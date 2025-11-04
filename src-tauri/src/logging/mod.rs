@@ -10,7 +10,7 @@ pub use metrics::{MetricsCollector, MetricsSnapshot};
 pub use metrics::TimedOperation;
 pub use commands::{LogEntry, LogFileInfo, LoggingStats};
 
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 /// Initialize the logging system with the provided configuration
@@ -35,26 +35,40 @@ pub fn init_logging(config: LoggingConfig) -> Result<(), String> {
 
     // Configure subscriber based on environment
     if cfg!(debug_assertions) {
-        // Development: pretty console output + file logging
-        fmt()
-            .with_env_filter(env_filter)
+        // Development: stdout + file logging
+        let file_layer = fmt::layer()
             .with_writer(non_blocking)
             .with_file(true)
             .with_line_number(true)
             .with_thread_ids(false)
-            .pretty()
+            .pretty();
+
+        let stdout_layer = fmt::layer()
+            .with_writer(std::io::stdout)
+            .with_file(true)
+            .with_line_number(true)
+            .with_thread_ids(false)
+            .pretty();
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(file_layer)
+            .with(stdout_layer)
             .init();
     } else {
         // Production: JSON file logging only
-        fmt()
-            .with_env_filter(env_filter)
+        let file_layer = fmt::layer()
             .with_writer(non_blocking)
             .json()
             .with_current_span(true)
             .with_span_list(true)
             .with_thread_ids(true)
             .with_file(true)
-            .with_line_number(true)
+            .with_line_number(true);
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(file_layer)
             .init();
     }
 

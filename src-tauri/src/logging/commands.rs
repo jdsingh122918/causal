@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use regex::Regex;
 
 /// Log entry from file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,11 +35,36 @@ pub struct LoggingStats {
 pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>, String> {
     let current_log = log_dir.join("causal.log");
 
-    if !current_log.exists() {
-        return Ok(Vec::new());
-    }
+    // If current log doesn't exist, try to find the most recent dated log file
+    let log_file = if current_log.exists() {
+        current_log
+    } else {
+        // Find the most recent log file (causal.log.YYYY-MM-DD)
+        let entries = fs::read_dir(log_dir)
+            .map_err(|e| format!("Failed to read log directory: {}", e))?;
 
-    let content = fs::read_to_string(&current_log)
+        let mut log_files: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                p.is_file() &&
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.starts_with("causal.log"))
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        if log_files.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Sort by filename (most recent date last)
+        log_files.sort();
+        log_files.pop().unwrap()
+    };
+
+    let content = fs::read_to_string(&log_file)
         .map_err(|e| format!("Failed to read log file: {}", e))?;
 
     let lines: Vec<&str> = content.lines().collect();
@@ -48,12 +74,25 @@ pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>,
         0
     };
 
+    // Helper function to strip ANSI escape codes
+    let strip_ansi = |s: &str| -> String {
+        let re = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+        re.replace_all(s, "").to_string()
+    };
+
     let entries: Vec<LogEntry> = lines[start_idx..]
         .iter()
         .filter_map(|line| {
+            if line.trim().is_empty() {
+                return None;
+            }
+
+            // Strip ANSI codes for parsing
+            let clean_line = strip_ansi(line);
+
             // Try to parse as JSON (production mode)
-            if line.starts_with('{') {
-                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+            if clean_line.trim().starts_with('{') {
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&clean_line) {
                     return Some(LogEntry {
                         timestamp: json_value.get("timestamp")
                             .and_then(|v| v.as_str())
@@ -66,7 +105,7 @@ pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>,
                         message: json_value.get("message")
                             .or_else(|| json_value.get("fields")?.get("message"))
                             .and_then(|v| v.as_str())
-                            .unwrap_or(line)
+                            .unwrap_or(&clean_line)
                             .to_string(),
                         fields: json_value.get("fields")
                             .and_then(|v| serde_json::to_string(v).ok()),
@@ -74,24 +113,35 @@ pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>,
                 }
             }
 
-            // Parse as plain text (development mode)
-            // Format: "2024-01-01 12:00:00 LEVEL message"
-            let parts: Vec<&str> = line.splitn(4, ' ').collect();
-            if parts.len() >= 3 {
-                Some(LogEntry {
-                    timestamp: format!("{} {}", parts.get(0).unwrap_or(&""), parts.get(1).unwrap_or(&"")),
-                    level: parts.get(2).unwrap_or(&"INFO").to_string(),
-                    message: parts.get(3).unwrap_or(&line).to_string(),
-                    fields: None,
-                })
-            } else {
-                Some(LogEntry {
-                    timestamp: String::new(),
-                    level: "INFO".to_string(),
-                    message: line.to_string(),
-                    fields: None,
-                })
+            // Parse as structured text (development mode with tracing-subscriber)
+            // Format: "  YYYY-MM-DDTHH:MM:SS.SSSSSSZ LEVEL module: message"
+            let trimmed = clean_line.trim();
+
+            // Try to extract timestamp, level, and message
+            if let Some(first_space) = trimmed.find(' ') {
+                let timestamp = trimmed[..first_space].trim();
+                let rest = trimmed[first_space..].trim();
+
+                if let Some(second_space) = rest.find(' ') {
+                    let level = rest[..second_space].trim().to_uppercase();
+                    let message = rest[second_space..].trim();
+
+                    return Some(LogEntry {
+                        timestamp: timestamp.to_string(),
+                        level,
+                        message: message.to_string(),
+                        fields: None,
+                    });
+                }
             }
+
+            // Fallback: treat entire line as message
+            Some(LogEntry {
+                timestamp: String::new(),
+                level: "INFO".to_string(),
+                message: clean_line,
+                fields: None,
+            })
         })
         .collect();
 
@@ -207,30 +257,47 @@ pub fn clear_old_logs(log_dir: &PathBuf) -> Result<String, String> {
         return Ok("No log directory found".to_string());
     }
 
-    let mut deleted_count = 0;
+    // First, find all log files and identify the most recent one
     let entries = fs::read_dir(log_dir)
         .map_err(|e| format!("Failed to read log directory: {}", e))?;
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() {
-                let is_current = path.file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| n == "causal.log")
-                    .unwrap_or(false);
+    let mut log_files: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            p.is_file() &&
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.starts_with("causal.log"))
+                .unwrap_or(false)
+        })
+        .collect();
 
-                // Only delete archived logs, keep current
-                if !is_current && path.to_string_lossy().contains("causal.log") {
-                    if fs::remove_file(&path).is_ok() {
-                        deleted_count += 1;
-                    }
-                }
-            }
+    if log_files.is_empty() {
+        return Ok("No log files found".to_string());
+    }
+
+    // Sort by filename (most recent date last) - this works because filenames are causal.log.YYYY-MM-DD
+    log_files.sort();
+
+    // The last file (most recent) is the current log - don't delete it
+    let current_log = log_files.pop();
+
+    // Delete all other (older) log files
+    let mut deleted_count = 0;
+    for path in log_files {
+        if fs::remove_file(&path).is_ok() {
+            deleted_count += 1;
         }
     }
 
-    Ok(format!("Cleared {} old log file(s)", deleted_count))
+    if let Some(current) = current_log {
+        Ok(format!("Cleared {} old log file(s), kept current log: {}",
+            deleted_count,
+            current.file_name().unwrap_or_default().to_string_lossy()))
+    } else {
+        Ok(format!("Cleared {} old log file(s)", deleted_count))
+    }
 }
 
 /// Clear all logs including current

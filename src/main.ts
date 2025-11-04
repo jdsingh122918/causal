@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask, save, message } from "@tauri-apps/plugin-dialog";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { initDiagnostics } from "./diagnostics";
+import { initDiagnostics, loadLogs, loadLoggingStats } from "./diagnostics";
 
 interface AudioDevice {
   id: string;
@@ -124,6 +124,7 @@ let newProjectDialog: HTMLElement;
 let saveRecordingDialog: HTMLElement;
 let settingsDialog: HTMLElement;
 let recordingDetailView: HTMLElement;
+let renameRecordingDialog: HTMLElement;
 
 // State
 let transcriptText = "";
@@ -146,6 +147,7 @@ let currentProject: Project | null = null;
 let recordings: Recording[] = [];
 let currentRecording: Recording | null = null;
 let lastSummary: TranscriptSummary | null = null;
+let recordingBeingRenamed: { id: string; currentName: string } | null = null;
 
 // Tab switching
 function switchTab(tabName: string) {
@@ -1030,6 +1032,76 @@ function hideRecordingDetail() {
   currentRecording = null;
 }
 
+function showRenameDialog(recordingId: string, currentName: string) {
+  recordingBeingRenamed = { id: recordingId, currentName };
+
+  const input = document.getElementById(
+    "rename-recording-input",
+  ) as HTMLInputElement;
+  input.value = currentName;
+
+  renameRecordingDialog.style.display = "flex";
+  input.focus();
+  input.select();
+}
+
+function hideRenameDialog() {
+  renameRecordingDialog.style.display = "none";
+  recordingBeingRenamed = null;
+}
+
+async function handleRenameConfirm() {
+  if (!recordingBeingRenamed) {
+    return;
+  }
+
+  const input = document.getElementById(
+    "rename-recording-input",
+  ) as HTMLInputElement;
+  const newName = input.value.trim();
+
+  if (!newName || newName === recordingBeingRenamed.currentName) {
+    hideRenameDialog();
+    return;
+  }
+
+  try {
+    await invoke("update_recording_name", {
+      id: recordingBeingRenamed.id,
+      name: newName,
+    });
+
+    // Reload the recording to get updated data
+    const updatedRecording = await invoke<Recording>("get_recording", {
+      id: recordingBeingRenamed.id,
+    });
+
+    // Update the detail view with new data
+    showRecordingDetail(updatedRecording);
+
+    // Reload recordings list for current project
+    if (currentProject) {
+      await loadRecordings(currentProject.id);
+    }
+
+    hideRenameDialog();
+    await message("Recording renamed successfully!", {
+      title: "Success",
+      kind: "info",
+    });
+  } catch (error) {
+    console.error("Failed to rename recording:", error);
+    await message(`Failed to rename recording: ${error}`, {
+      title: "Error",
+      kind: "error",
+    });
+  }
+}
+
+async function renameRecording(recordingId: string, currentName: string) {
+  showRenameDialog(recordingId, currentName);
+}
+
 async function deleteRecording(recordingId: string) {
   if (!confirm("Are you sure you want to delete this recording?")) {
     return;
@@ -1102,33 +1174,61 @@ async function generateSummaryForRecording(recordingId: string) {
 }
 
 async function exportRecording(recording: Recording) {
-  const content = `RECORDING: ${recording.name}
-Created: ${new Date(recording.created_at * 1000).toLocaleString()}
-Duration: ${Math.round(recording.metadata.duration_seconds)}s
-Words: ${recording.metadata.word_count}
+  const exportBtn = document.getElementById(
+    "detail-export-btn",
+  ) as HTMLButtonElement;
+  const originalText = exportBtn?.textContent || "Export";
 
-${recording.summary ? `SUMMARY\n${recording.summary}\n\n` : ""}${
-    recording.key_points.length > 0
-      ? `KEY POINTS\n${recording.key_points.map((p: string) => `- ${p}`).join("\n")}\n\n`
-      : ""
-  }${
-    recording.action_items.length > 0
-      ? `ACTION ITEMS\n${recording.action_items.map((i: string) => `- ${i}`).join("\n")}\n\n`
-      : ""
-  }ENHANCED TRANSCRIPT
-${recording.enhanced_transcript}
+  try {
+    const defaultFilename = `${recording.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-${Date.now()}.txt`;
 
-RAW TRANSCRIPT
-${recording.raw_transcript}
-`;
+    const filePath = await save({
+      defaultPath: defaultFilename,
+      filters: [
+        {
+          name: "Text Files",
+          extensions: ["txt"],
+        },
+      ],
+    });
 
-  const blob = new Blob([content], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${recording.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-${Date.now()}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
+    if (!filePath) {
+      return; // User cancelled
+    }
+
+    // Show loading state
+    if (exportBtn) {
+      exportBtn.disabled = true;
+      exportBtn.textContent = "Exporting...";
+    }
+
+    // Use backend command to export the recording
+    const result = await invoke<string>("export_recording", {
+      recordingId: recording.id,
+      outputPath: filePath,
+    });
+
+    // Show success feedback
+    if (exportBtn) {
+      exportBtn.textContent = "Exported!";
+      setTimeout(() => {
+        exportBtn.textContent = originalText;
+        exportBtn.disabled = false;
+      }, 2000);
+    }
+
+    alert(result);
+  } catch (error) {
+    console.error("Failed to export recording:", error);
+
+    // Restore button state on error
+    if (exportBtn) {
+      exportBtn.textContent = originalText;
+      exportBtn.disabled = false;
+    }
+
+    alert(`Failed to export recording: ${error}`);
+  }
 }
 
 // ===== MODAL DIALOG FUNCTIONS =====
@@ -1217,6 +1317,20 @@ async function showSaveRecordingDialog() {
 
 function hideSaveRecordingDialog() {
   saveRecordingDialog.style.display = "none";
+}
+
+function showDiagnosticsModal() {
+  const diagnosticsModal = document.getElementById("diagnostics-modal")!;
+  diagnosticsModal.style.display = "flex";
+
+  // Load diagnostics data when modal opens
+  loadLogs();
+  loadLoggingStats();
+}
+
+function hideDiagnosticsModal() {
+  const diagnosticsModal = document.getElementById("diagnostics-modal")!;
+  diagnosticsModal.style.display = "none";
 }
 
 function showSettingsDialog() {
@@ -1348,6 +1462,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   saveRecordingDialog = document.querySelector("#save-recording-dialog")!;
   settingsDialog = document.querySelector("#settings-dialog")!;
   recordingDetailView = document.querySelector("#recording-detail-view")!;
+  renameRecordingDialog = document.querySelector("#rename-recording-dialog")!;
 
   // Refinement settings UI
   refinementModeRadios = document.querySelectorAll(
@@ -1411,6 +1526,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     .getElementById("close-save-dialog")!
     .addEventListener("click", hideSaveRecordingDialog);
 
+  // Diagnostics modal
+  document
+    .getElementById("diagnostics-btn")!
+    .addEventListener("click", showDiagnosticsModal);
+  document
+    .getElementById("close-diagnostics-modal")!
+    .addEventListener("click", hideDiagnosticsModal);
+
   // Settings dialog
   document
     .getElementById("settings-btn")!
@@ -1444,12 +1567,30 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     });
   document
+    .getElementById("detail-rename-btn")!
+    .addEventListener("click", async () => {
+      if (currentRecording) {
+        await renameRecording(currentRecording.id, currentRecording.name);
+      }
+    });
+  document
     .getElementById("detail-delete-btn")!
     .addEventListener("click", async () => {
       if (currentRecording) {
         await deleteRecording(currentRecording.id);
       }
     });
+
+  // Rename recording dialog
+  document
+    .getElementById("confirm-rename-btn")!
+    .addEventListener("click", handleRenameConfirm);
+  document
+    .getElementById("cancel-rename-btn")!
+    .addEventListener("click", hideRenameDialog);
+  document
+    .getElementById("close-rename-dialog")!
+    .addEventListener("click", hideRenameDialog);
 
   // Allow Enter key to submit dialogs
   document.getElementById("project-name")!.addEventListener("keypress", (e) => {
@@ -1463,6 +1604,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     .addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
         handleSaveRecording();
+      }
+    });
+
+  document
+    .getElementById("rename-recording-input")!
+    .addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        handleRenameConfirm();
       }
     });
 

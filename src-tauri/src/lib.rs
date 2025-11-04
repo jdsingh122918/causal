@@ -138,6 +138,7 @@ pub fn run() {
             database::get_recording,
             database::update_recording_name,
             database::delete_recording,
+            database::export_recording,
             database::get_database_stats,
             database::generate_recording_summary,
             // Recording session commands

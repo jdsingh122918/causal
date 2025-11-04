@@ -1,5 +1,7 @@
 use crate::database::{Database, Recording};
+use crate::LoggingState;
 use crate::transcription::commands::AppState;
+use std::sync::Mutex;
 use tauri::State;
 
 /// Save the current transcription session as a recording
@@ -7,6 +9,7 @@ use tauri::State;
 pub async fn save_recording(
     db: State<'_, Database>,
     state: State<'_, AppState>,
+    logging_state: State<'_, Mutex<LoggingState>>,
     name: String,
     summary: Option<String>,
     key_points: Vec<String>,
@@ -47,6 +50,11 @@ pub async fn save_recording(
 
     // Save to database
     let saved = db.create_recording(recording).await?;
+
+    // Track metrics
+    if let Ok(log_state) = logging_state.lock() {
+        log_state.metrics.recording_saved();
+    }
 
     // Clear the session after successful save
     state.session_manager.clear_session().await;

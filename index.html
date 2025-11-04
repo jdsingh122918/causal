@@ -23,6 +23,7 @@
       </div>
 
       <div class="sidebar-footer">
+        <button id="diagnostics-btn" class="btn-secondary btn-small">🔍 Diagnostics</button>
         <button id="settings-btn" class="btn-secondary btn-small">⚙️ Settings</button>
       </div>
     </aside>
@@ -40,7 +41,6 @@
       <div class="tabs">
         <button class="tab-button active" data-tab="recording">Recording</button>
         <button class="tab-button" data-tab="summary">Summary</button>
-        <button class="tab-button" data-tab="diagnostics">Diagnostics</button>
       </div>
 
       <!-- Recording Tab -->
@@ -79,167 +79,6 @@
 
           <div id="recordings-empty-state" class="empty-state">
             <p>No recordings yet. Start recording to create one!</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Diagnostics Tab -->
-      <div id="diagnostics-tab" class="tab-content">
-        <!-- Metrics Dashboard -->
-        <div class="diagnostics-section">
-          <div class="section-header">
-            <h2>📊 Application Metrics</h2>
-            <button id="refresh-metrics-btn" class="btn-small">Refresh</button>
-            <button id="reset-metrics-btn" class="btn-small btn-danger">Reset</button>
-          </div>
-
-          <div class="metrics-grid">
-            <!-- Transcription Metrics -->
-            <div class="metric-card">
-              <h3>Transcription Sessions</h3>
-              <div class="metric-stats">
-                <div class="metric-item">
-                  <span class="metric-label">Started:</span>
-                  <span id="metric-sessions-started" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Completed:</span>
-                  <span id="metric-sessions-completed" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Failed:</span>
-                  <span id="metric-sessions-failed" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Avg Duration:</span>
-                  <span id="metric-avg-duration" class="metric-value">0s</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Total Words:</span>
-                  <span id="metric-total-words" class="metric-value">0</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Audio Metrics -->
-            <div class="metric-card">
-              <h3>Audio Processing</h3>
-              <div class="metric-stats">
-                <div class="metric-item">
-                  <span class="metric-label">Frames Processed:</span>
-                  <span id="metric-audio-frames" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Buffer Overruns:</span>
-                  <span id="metric-buffer-overruns" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Buffer Underruns:</span>
-                  <span id="metric-buffer-underruns" class="metric-value">0</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- API Metrics -->
-            <div class="metric-card">
-              <h3>API Performance</h3>
-              <div class="metric-stats">
-                <div class="metric-item">
-                  <span class="metric-label">Total Calls:</span>
-                  <span id="metric-api-total" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Success Rate:</span>
-                  <span id="metric-api-success-rate" class="metric-value">0%</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Avg Latency:</span>
-                  <span id="metric-api-latency" class="metric-value">0ms</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Enhancement Metrics -->
-            <div class="metric-card">
-              <h3>AI Operations</h3>
-              <div class="metric-stats">
-                <div class="metric-item">
-                  <span class="metric-label">Enhancements:</span>
-                  <span id="metric-enhancements" class="metric-value">0 / 0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Refinements:</span>
-                  <span id="metric-refinements" class="metric-value">0 / 0</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Database Metrics -->
-            <div class="metric-card">
-              <h3>Database</h3>
-              <div class="metric-stats">
-                <div class="metric-item">
-                  <span class="metric-label">Recordings Saved:</span>
-                  <span id="metric-recordings-saved" class="metric-value">0</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-label">Projects Created:</span>
-                  <span id="metric-projects-created" class="metric-value">0</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Log Viewer -->
-        <div class="diagnostics-section">
-          <div class="section-header">
-            <h2>📝 Logs</h2>
-            <div>
-              <button id="export-logs-btn" class="btn-small">Export</button>
-              <button id="clear-old-logs-btn" class="btn-small">Clear Old</button>
-              <button id="refresh-logs-btn" class="btn-small">Refresh</button>
-            </div>
-          </div>
-
-          <div class="log-stats">
-            <div class="stat-item">
-              <span class="stat-label">Log Directory:</span>
-              <span id="log-directory" class="stat-value mono">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Total Size:</span>
-              <span id="log-total-size" class="stat-value">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">File Count:</span>
-              <span id="log-file-count" class="stat-value">-</span>
-            </div>
-          </div>
-
-          <div class="log-viewer">
-            <div class="log-controls">
-              <label>
-                Show:
-                <select id="log-limit-select">
-                  <option value="50">Last 50</option>
-                  <option value="100" selected>Last 100</option>
-                  <option value="200">Last 200</option>
-                  <option value="500">Last 500</option>
-                </select>
-              </label>
-              <label>
-                Level:
-                <select id="log-level-filter">
-                  <option value="ALL">All Levels</option>
-                  <option value="ERROR">Errors Only</option>
-                  <option value="WARN">Warnings+</option>
-                  <option value="INFO">Info+</option>
-                  <option value="DEBUG">Debug+</option>
-                </select>
-              </label>
-            </div>
-            <div id="log-entries" class="log-entries"></div>
           </div>
         </div>
       </div>
@@ -512,6 +351,102 @@
         <div class="modal-footer">
           <button id="cancel-settings-btn" class="btn-secondary">Cancel</button>
           <button id="save-settings-btn" class="btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnostics Modal -->
+    <div id="diagnostics-modal" class="modal" style="display: none;">
+      <div class="modal-content diagnostics-modal-content">
+        <div class="modal-header">
+          <h2>🔍 Diagnostics & Logs</h2>
+          <button class="modal-close" id="close-diagnostics-modal">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Log Viewer -->
+          <div class="diagnostics-section">
+            <div class="section-header">
+              <h3>📝 Application Logs</h3>
+              <div>
+                <button id="export-logs-btn" class="btn-small">Export</button>
+                <button id="clear-old-logs-btn" class="btn-small">Clear Old</button>
+                <button id="refresh-logs-btn" class="btn-small">Refresh</button>
+              </div>
+            </div>
+
+            <div class="log-info" style="background: #2a2a2a; padding: 12px; border-radius: 4px; margin-bottom: 12px; font-size: 13px;">
+              <strong>Debug Logging:</strong> To enable debug logs, set the <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">RUST_LOG</code> environment variable to <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">debug</code> or <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">trace</code> before launching the app.
+              Example: <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">RUST_LOG=debug /path/to/Causal.app</code>
+            </div>
+
+            <div class="log-stats">
+              <div class="stat-item">
+                <span class="stat-label">Log Directory:</span>
+                <span id="log-directory" class="stat-value mono">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Total Size:</span>
+                <span id="log-total-size" class="stat-value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">File Count:</span>
+                <span id="log-file-count" class="stat-value">-</span>
+              </div>
+            </div>
+
+            <div class="log-viewer">
+              <div class="log-controls">
+                <label>
+                  Show:
+                  <select id="log-limit-select">
+                    <option value="50">Last 50</option>
+                    <option value="100" selected>Last 100</option>
+                    <option value="200">Last 200</option>
+                    <option value="500">Last 500</option>
+                  </select>
+                </label>
+                <label>
+                  Level:
+                  <select id="log-level-filter">
+                    <option value="ALL">All Levels</option>
+                    <option value="ERROR">Errors Only</option>
+                    <option value="WARN">Warnings+</option>
+                    <option value="INFO">Info+</option>
+                    <option value="DEBUG">Debug+</option>
+                  </select>
+                </label>
+              </div>
+              <div id="log-entries" class="log-entries"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rename Recording Dialog -->
+    <div id="rename-recording-dialog" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Rename Recording</h2>
+          <button class="modal-close" id="close-rename-dialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="rename-recording-input">Recording Name *</label>
+            <input
+              type="text"
+              id="rename-recording-input"
+              placeholder="Enter new recording name"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="cancel-rename-btn" class="btn-secondary">Cancel</button>
+          <button id="confirm-rename-btn" class="btn-primary">Rename</button>
         </div>
       </div>
     </div>

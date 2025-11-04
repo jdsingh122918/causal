@@ -1,6 +1,11 @@
 use super::models::{Project, Recording};
 use super::store::Database;
+use crate::LoggingState;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::SystemTime;
 use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,11 +36,19 @@ pub struct CreateRecordingRequest {
 #[tauri::command]
 pub async fn create_project(
     db: State<'_, Database>,
+    logging_state: State<'_, Mutex<LoggingState>>,
     request: CreateProjectRequest,
 ) -> Result<Project, String> {
     tracing::info!("Creating project: {}", request.name);
     let project = Project::new(request.name, request.description);
-    db.create_project(project).await
+    let result = db.create_project(project).await?;
+
+    // Track metrics
+    if let Ok(state) = logging_state.lock() {
+        state.metrics.project_created();
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -187,4 +200,71 @@ pub async fn generate_recording_summary(
 pub struct DatabaseStats {
     pub project_count: usize,
     pub recording_count: usize,
+}
+
+/// Export a recording to a text file
+#[tauri::command]
+pub async fn export_recording(
+    db: State<'_, Database>,
+    recording_id: String,
+    output_path: String,
+) -> Result<String, String> {
+    // Get the recording
+    let recording = db.get_recording(&recording_id).await?;
+
+    // Format the content
+    let timestamp = recording
+        .created_at
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let created_date = chrono::DateTime::from_timestamp(timestamp, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    let mut content = format!(
+        "RECORDING: {}\nCreated: {}\nDuration: {}s\nWords: {}\n\n",
+        recording.name,
+        created_date,
+        recording.metadata.duration_seconds.round(),
+        recording.metadata.word_count
+    );
+
+    // Add summary if available
+    if let Some(summary) = &recording.summary {
+        if !summary.is_empty() {
+            content.push_str(&format!("SUMMARY\n{}\n\n", summary));
+        }
+    }
+
+    // Add key points if available
+    if !recording.key_points.is_empty() {
+        content.push_str("KEY POINTS\n");
+        for point in &recording.key_points {
+            content.push_str(&format!("- {}\n", point));
+        }
+        content.push('\n');
+    }
+
+    // Add action items if available
+    if !recording.action_items.is_empty() {
+        content.push_str("ACTION ITEMS\n");
+        for item in &recording.action_items {
+            content.push_str(&format!("- {}\n", item));
+        }
+        content.push('\n');
+    }
+
+    // Add enhanced transcript
+    content.push_str("ENHANCED TRANSCRIPT\n");
+    content.push_str(&recording.enhanced_transcript);
+    content.push_str("\n\nRAW TRANSCRIPT\n");
+    content.push_str(&recording.raw_transcript);
+
+    // Write to file
+    let path = PathBuf::from(&output_path);
+    fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))?;
+
+    Ok(format!("Recording exported to {}", output_path))
 }

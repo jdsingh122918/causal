@@ -679,6 +679,9 @@ button:disabled {
 }
 
 .sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid #e8e8e8;
 }
@@ -887,6 +890,18 @@ button:disabled {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Diagnostics modal - larger size */
+.diagnostics-modal-content {
+  max-width: 1200px;
+  width: 95%;
+  max-height: 95vh;
+}
+
+.diagnostics-modal-content .modal-body {
+  max-height: calc(95vh - 150px);
+  overflow-y: auto;
 }
 
 .modal-header {

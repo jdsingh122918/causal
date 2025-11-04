@@ -1,28 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 
-interface MetricsSnapshot {
-  transcription_sessions_started: number;
-  transcription_sessions_completed: number;
-  transcription_sessions_failed: number;
-  avg_transcription_duration_ms: number;
-  total_words_transcribed: number;
-  audio_buffer_overruns: number;
-  audio_buffer_underruns: number;
-  total_audio_frames_processed: number;
-  api_calls_total: number;
-  api_calls_successful: number;
-  api_calls_failed: number;
-  api_success_rate: number;
-  avg_api_latency_ms: number;
-  enhancements_requested: number;
-  enhancements_completed: number;
-  refinements_requested: number;
-  refinements_completed: number;
-  recordings_saved: number;
-  projects_created: number;
-}
-
 interface LogEntry {
   timestamp: string;
   level: string;
@@ -40,12 +18,6 @@ interface LoggingStats {
 
 // Initialize diagnostics tab
 export function initDiagnostics() {
-  const refreshMetricsBtn = document.getElementById(
-    "refresh-metrics-btn",
-  ) as HTMLButtonElement;
-  const resetMetricsBtn = document.getElementById(
-    "reset-metrics-btn",
-  ) as HTMLButtonElement;
   const refreshLogsBtn = document.getElementById(
     "refresh-logs-btn",
   ) as HTMLButtonElement;
@@ -63,23 +35,6 @@ export function initDiagnostics() {
   ) as HTMLSelectElement;
 
   // Event listeners
-  refreshMetricsBtn?.addEventListener("click", loadMetrics);
-  resetMetricsBtn?.addEventListener("click", async () => {
-    if (
-      confirm(
-        "Are you sure you want to reset all metrics? This cannot be undone.",
-      )
-    ) {
-      try {
-        await invoke("reset_metrics");
-        await loadMetrics();
-      } catch (error) {
-        console.error("Failed to reset metrics:", error);
-        alert(`Failed to reset metrics: ${error}`);
-      }
-    }
-  });
-
   refreshLogsBtn?.addEventListener("click", loadLogs);
   exportLogsBtn?.addEventListener("click", exportLogs);
   clearOldLogsBtn?.addEventListener("click", async () => {
@@ -99,64 +54,14 @@ export function initDiagnostics() {
   logLevelFilter?.addEventListener("change", filterLogs);
 
   // Initial load
-  loadMetrics();
   loadLogs();
   loadLoggingStats();
-}
-
-// Load and display metrics
-async function loadMetrics() {
-  try {
-    const metrics = await invoke<MetricsSnapshot>("get_metrics");
-    displayMetrics(metrics);
-  } catch (error) {
-    console.error("Failed to load metrics:", error);
-  }
-}
-
-function displayMetrics(metrics: MetricsSnapshot) {
-  // Transcription metrics
-  setText("metric-sessions-started", metrics.transcription_sessions_started);
-  setText(
-    "metric-sessions-completed",
-    metrics.transcription_sessions_completed,
-  );
-  setText("metric-sessions-failed", metrics.transcription_sessions_failed);
-  setText(
-    "metric-avg-duration",
-    `${(metrics.avg_transcription_duration_ms / 1000).toFixed(1)}s`,
-  );
-  setText("metric-total-words", metrics.total_words_transcribed);
-
-  // Audio metrics
-  setText("metric-audio-frames", metrics.total_audio_frames_processed);
-  setText("metric-buffer-overruns", metrics.audio_buffer_overruns);
-  setText("metric-buffer-underruns", metrics.audio_buffer_underruns);
-
-  // API metrics
-  setText("metric-api-total", metrics.api_calls_total);
-  setText("metric-api-success-rate", `${metrics.api_success_rate.toFixed(1)}%`);
-  setText("metric-api-latency", `${metrics.avg_api_latency_ms.toFixed(0)}ms`);
-
-  // Enhancement metrics
-  setText(
-    "metric-enhancements",
-    `${metrics.enhancements_completed} / ${metrics.enhancements_requested}`,
-  );
-  setText(
-    "metric-refinements",
-    `${metrics.refinements_completed} / ${metrics.refinements_requested}`,
-  );
-
-  // Database metrics
-  setText("metric-recordings-saved", metrics.recordings_saved);
-  setText("metric-projects-created", metrics.projects_created);
 }
 
 // Load and display logs
 let allLogs: LogEntry[] = [];
 
-async function loadLogs() {
+export async function loadLogs() {
   try {
     const limitSelect = document.getElementById(
       "log-limit-select",
@@ -227,7 +132,7 @@ function displayLogs(logs: LogEntry[]) {
 }
 
 // Load and display logging stats
-async function loadLoggingStats() {
+export async function loadLoggingStats() {
   try {
     const stats = await invoke<LoggingStats>("get_logging_stats");
 

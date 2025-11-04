@@ -504,6 +504,7 @@ dependencies = [
  "futures-util",
  "hound",
  "http",
+ "regex",
  "reqwest",
  "rubato",
  "rusqlite",

@@ -128,7 +128,6 @@ impl SessionData {
     }
 
     /// Update session duration
-    #[allow(dead_code)]
     pub fn update_duration(&mut self) {
         if let Ok(elapsed) = self.start_time.elapsed() {
             self.metadata.duration_seconds = elapsed.as_secs_f64();

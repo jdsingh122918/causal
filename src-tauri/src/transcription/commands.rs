@@ -357,6 +357,12 @@ pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String
 
     // Get session duration and word count for metrics
     let start_time = state.session_start_time.lock().await.take();
+
+    // Update session duration before accessing session data
+    state.session_manager.update_metadata(|session| {
+        session.update_duration();
+    }).await.ok();
+
     let session_data = state.session_manager.get_session().await;
     let word_count = session_data.map(|s| s.metadata.word_count).unwrap_or(0);
 

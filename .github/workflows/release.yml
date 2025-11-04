@@ -78,5 +78,5 @@ jobs:
             ## Auto-Updates
             The app will automatically check for updates on startup and notify you when a new version is available.
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') }}
           args: ${{ matrix.args }}

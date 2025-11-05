@@ -50,8 +50,8 @@ export async function deleteProject(projectId: string): Promise<void> {
   return await invoke("delete_project", { id: projectId });
 }
 
-export async function getCurrentProject(): Promise<Project> {
-  return await invoke<Project>("get_current_project");
+export async function getCurrentProject(): Promise<Project | null> {
+  return await invoke<Project | null>("get_current_project");
 }
 
 // Recording Commands

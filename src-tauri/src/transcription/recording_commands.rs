@@ -1,4 +1,4 @@
-use crate::database::{Database, Recording};
+use crate::database::{Database, Recording, Project};
 use crate::LoggingState;
 use crate::transcription::commands::AppState;
 use std::sync::Mutex;
@@ -86,23 +86,55 @@ pub async fn get_current_session(
 pub async fn set_current_project(
     app: AppHandle,
     state: State<'_, AppState>,
+    db: State<'_, Database>,
     project_id: Option<String>,
 ) -> Result<(), String> {
     tracing::info!("Setting current project: {:?}", project_id);
-    *state.current_project_id.lock().await = project_id.clone();
 
-    // Emit real-time event for project selection change
-    if let Err(e) = app.emit("current_project_changed", serde_json::json!({"project_id": project_id})) {
-        tracing::error!("Failed to emit current_project_changed event: {}", e);
+    // Validate project exists if provided
+    if let Some(ref id) = project_id {
+        if let Err(e) = db.get_project(id).await {
+            return Err(format!("Project {} not found: {}", id, e));
+        }
+    }
+
+    // Get current project for comparison
+    let current_project_id = state.current_project_id.lock().await.clone();
+
+    // Only update and emit event if project actually changed
+    if current_project_id != project_id {
+        *state.current_project_id.lock().await = project_id.clone();
+
+        // Emit real-time event for project selection change
+        if let Err(e) = app.emit("current_project_changed", serde_json::json!({"project_id": project_id})) {
+            tracing::error!("Failed to emit current_project_changed event: {}", e);
+        }
     }
 
     Ok(())
 }
 
-/// Get the current project ID
+/// Get the current project
 #[tauri::command]
-pub async fn get_current_project(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    Ok(state.current_project_id.lock().await.clone())
+pub async fn get_current_project(
+    state: State<'_, AppState>,
+    db: State<'_, Database>,
+) -> Result<Option<Project>, String> {
+    let project_id = state.current_project_id.lock().await.clone();
+
+    if let Some(id) = project_id {
+        match db.get_project(&id).await {
+            Ok(project) => Ok(Some(project)),
+            Err(_) => {
+                // Project doesn't exist, clear current project
+                tracing::warn!("Current project {} not found, clearing current project", id);
+                *state.current_project_id.lock().await = None;
+                Ok(None)
+            }
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 /// Clear the current session

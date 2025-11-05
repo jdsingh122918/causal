@@ -66,8 +66,21 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const handleCurrentProjectChanged = useCallback((payload: { project_id: string | null }) => {
     console.log('Current project changed via real-time event:', payload.project_id);
     if (payload.project_id) {
+      // Try to find project in current projects list
       const project = projects.find(p => p.id === payload.project_id);
-      setCurrentProject(project || null);
+      if (project) {
+        setCurrentProject(project);
+      } else {
+        // Project not found in current list, fetch it directly
+        tauri.getCurrentProject()
+          .then((currentProject) => {
+            setCurrentProject(currentProject);
+          })
+          .catch((error) => {
+            console.error("Failed to fetch current project:", error);
+            setCurrentProject(null);
+          });
+      }
     } else {
       setCurrentProject(null);
     }
@@ -95,11 +108,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       // Try to load the current project
       try {
         const currentProject = await tauri.getCurrentProject();
-        if (currentProject) {
-          setCurrentProject(currentProject);
-        } else {
-          setCurrentProject(null);
-        }
+        setCurrentProject(currentProject);
       } catch (error) {
         // No current project set - expected when no project is selected
         const errorMessage = error instanceof Error ? error.message : String(error);

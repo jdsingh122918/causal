@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { Project, CreateProjectRequest } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 

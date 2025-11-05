@@ -118,7 +118,6 @@ export async function startTranscription(
   try {
     const result = await invoke("start_transcription", params);
     console.log("🐛 invoke successful, result:", result);
-    return result;
   } catch (error) {
     console.error("🐛 invoke failed with error:", error);
     throw error;

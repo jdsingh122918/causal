@@ -39,11 +39,14 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
           setCurrentProject(null);
         }
       } catch (error) {
-        // No current project set
+        // No current project set - expected when no project is selected
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.debug("No current project:", errorMessage);
         setCurrentProject(null);
       }
     } catch (error) {
-      console.error("Failed to load projects:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to load projects:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -55,7 +58,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       setProjects((prev) => [...prev, newProject]);
       setCurrentProject(newProject);
     } catch (error) {
-      console.error("Failed to create project:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to create project:", errorMessage);
       throw error;
     }
   };
@@ -68,7 +72,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         setCurrentProject(project);
       }
     } catch (error) {
-      console.error("Failed to select project:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to select project:", errorMessage);
       throw error;
     }
   };
@@ -81,7 +86,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         setCurrentProject(null);
       }
     } catch (error) {
-      console.error("Failed to delete project:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to delete project:", errorMessage);
       throw error;
     }
   };

@@ -18,6 +18,40 @@ const SettingsContext = createContext<SettingsContextType | null>(null);
 
 const STORAGE_KEY = "causal_settings";
 
+// Type guard to validate AppSettings from localStorage
+function isValidAppSettings(data: unknown): data is AppSettings {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  // Check required properties with proper types
+  return (
+    (typeof obj.selected_device_id === 'string' || obj.selected_device_id === null) &&
+    typeof obj.assembly_api_key === 'string' &&
+    typeof obj.claude_api_key === 'string' &&
+    typeof obj.refinement_config === 'object' &&
+    obj.refinement_config !== null &&
+    isValidRefinementConfig(obj.refinement_config)
+  );
+}
+
+// Type guard for RefinementConfig
+function isValidRefinementConfig(data: unknown): data is RefinementConfig {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  return (
+    (obj.mode === 'disabled' || obj.mode === 'realtime' || obj.mode === 'chunked') &&
+    typeof obj.chunk_duration_secs === 'number' &&
+    obj.chunk_duration_secs > 0
+  );
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -48,7 +82,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error("Failed to load audio devices:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to load audio devices:", errorMessage);
     }
   };
 
@@ -56,14 +91,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const settings = JSON.parse(saved) as AppSettings;
-        setSelectedDeviceId(settings.selected_device_id);
-        setAssemblyApiKey(settings.assembly_api_key);
-        setClaudeApiKey(settings.claude_api_key);
-        setRefinementConfig(settings.refinement_config);
+        const parsedData = JSON.parse(saved);
+
+        // Validate the parsed data before using it
+        if (isValidAppSettings(parsedData)) {
+          setSelectedDeviceId(parsedData.selected_device_id);
+          setAssemblyApiKey(parsedData.assembly_api_key);
+          setClaudeApiKey(parsedData.claude_api_key);
+          setRefinementConfig(parsedData.refinement_config);
+        } else {
+          console.warn("Invalid settings data in localStorage, using defaults");
+          // Clear invalid data
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
     } catch (error) {
-      console.error("Failed to load settings from localStorage:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to load settings from localStorage:", errorMessage);
+      // Clear corrupted data on parse errors
+      localStorage.removeItem(STORAGE_KEY);
     }
   };
 
@@ -85,7 +131,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setClaudeApiKey(updatedSettings.claude_api_key);
       setRefinementConfig(updatedSettings.refinement_config);
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to save settings:", errorMessage);
       throw error;
     }
   };

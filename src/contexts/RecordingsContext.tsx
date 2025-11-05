@@ -50,12 +50,11 @@ export function RecordingsProvider({
 
     try {
       setLoading(true);
-      console.log("🐛 RecordingsContext.loadRecordings: About to call tauri.listRecordings with currentProject.id:", currentProject.id);
       const recordingsList = await tauri.listRecordings(currentProject.id);
-      console.log("🐛 RecordingsContext.loadRecordings: Successfully got recordings:", recordingsList);
       setRecordings(recordingsList);
     } catch (error) {
-      console.error("🐛 RecordingsContext.loadRecordings: Failed to load recordings:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to load recordings:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -77,7 +76,8 @@ export function RecordingsProvider({
       });
       setRecordings((prev) => [recording, ...prev]);
     } catch (error) {
-      console.error("Failed to save recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to save recording:", errorMessage);
       throw error;
     }
   };
@@ -94,7 +94,8 @@ export function RecordingsProvider({
         );
       }
     } catch (error) {
-      console.error("Failed to rename recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to rename recording:", errorMessage);
       throw error;
     }
   };
@@ -107,7 +108,8 @@ export function RecordingsProvider({
         setCurrentRecording(null);
       }
     } catch (error) {
-      console.error("Failed to delete recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to delete recording:", errorMessage);
       throw error;
     }
   };
@@ -148,7 +150,8 @@ export function RecordingsProvider({
       };
       setLastSummary(summary);
     } catch (error) {
-      console.error("Failed to generate summary:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to generate summary:", errorMessage);
       throw error;
     }
   };
@@ -179,7 +182,8 @@ export function RecordingsProvider({
         });
       }
     } catch (error) {
-      console.error("Failed to export recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to export recording:", errorMessage);
       throw error;
     }
   };

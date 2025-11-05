@@ -9,6 +9,7 @@ import { RecordingHistory } from "@/components/recording/RecordingHistory";
 import { SummaryView } from "@/components/summary/SummaryView";
 import { SettingsPanel } from "@/components/panels/SettingsPanel";
 import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
 function App() {
   const { currentProject } = useProjects();
@@ -17,9 +18,17 @@ function App() {
   const renderContent = () => {
     switch (currentView) {
       case 'settings':
-        return <SettingsPanel />;
+        return (
+          <ErrorBoundary>
+            <SettingsPanel />
+          </ErrorBoundary>
+        );
       case 'diagnostics':
-        return <DiagnosticsPanel />;
+        return (
+          <ErrorBoundary>
+            <DiagnosticsPanel />
+          </ErrorBoundary>
+        );
       case 'recording':
       default:
         // Recording view - check if project is selected
@@ -46,13 +55,21 @@ function App() {
               </TabsList>
 
               <TabsContent value="recording" className="space-y-6">
-                <RecordingControls />
-                <TranscriptDisplay />
-                <RecordingHistory />
+                <ErrorBoundary>
+                  <RecordingControls />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <TranscriptDisplay />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <RecordingHistory />
+                </ErrorBoundary>
               </TabsContent>
 
               <TabsContent value="summary" className="space-y-6">
-                <SummaryView />
+                <ErrorBoundary>
+                  <SummaryView />
+                </ErrorBoundary>
               </TabsContent>
             </Tabs>
           </div>
@@ -62,7 +79,9 @@ function App() {
 
   return (
     <AppLayout>
-      {renderContent()}
+      <ErrorBoundary>
+        {renderContent()}
+      </ErrorBoundary>
     </AppLayout>
   );
 }

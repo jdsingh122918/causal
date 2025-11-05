@@ -133,14 +133,6 @@ export function TranscriptionProvider({
         throw new Error("AssemblyAI API key not configured. Please set it in Settings.");
       }
 
-      console.log("🐛 TranscriptionContext.startRecording: About to call tauri.startTranscription with:", {
-        selectedDeviceId,
-        assemblyApiKey,
-        claudeApiKey: claudeApiKey || undefined,
-        projectId: currentProject?.id || undefined,
-        refinementConfig
-      });
-
       await tauri.startTranscription(
         selectedDeviceId,
         assemblyApiKey,
@@ -148,15 +140,14 @@ export function TranscriptionProvider({
         currentProject?.id || undefined,
         refinementConfig
       );
-
-      console.log("🐛 TranscriptionContext.startRecording: Successfully started transcription");
       setState((prev) => ({
         ...prev,
         isRecording: true,
         status: "recording",
       }));
     } catch (error) {
-      console.error("🐛 TranscriptionContext.startRecording: Failed to start recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to start recording:", errorMessage);
       throw error;
     }
   };
@@ -170,7 +161,8 @@ export function TranscriptionProvider({
         status: "completed",
       }));
     } catch (error) {
-      console.error("Failed to stop recording:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to stop recording:", errorMessage);
       throw error;
     }
   };

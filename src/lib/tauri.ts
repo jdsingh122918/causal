@@ -11,9 +11,16 @@ import {
   Recording,
   TranscriptSummary,
   AppSettings,
+  RefinementConfig,
 } from "./types";
 
 // Audio Device Commands
+
+/**
+ * Retrieves all available audio input and output devices from the system
+ * @returns Promise that resolves to an array of AudioDevice objects
+ * @throws Error if device enumeration fails
+ */
 export async function listAudioDevices(): Promise<AudioDevice[]> {
   return await invoke<AudioDevice[]>("list_audio_devices");
 }
@@ -23,6 +30,12 @@ export async function listProjects(): Promise<Project[]> {
   return await invoke<Project[]>("list_projects");
 }
 
+/**
+ * Creates a new project for organizing recordings
+ * @param request - Project creation request containing name and description
+ * @returns Promise that resolves to the created Project object
+ * @throws Error if project creation fails
+ */
 export async function createProject(
   request: CreateProjectRequest,
 ): Promise<Project> {
@@ -43,22 +56,27 @@ export async function getCurrentProject(): Promise<Project> {
 
 // Recording Commands
 export async function listRecordings(projectId: string): Promise<Recording[]> {
-  console.log("🐛 tauri.listRecordings called with projectId:", projectId);
   // WORKAROUND: Tauri is transforming snake_case back to camelCase, so send camelCase
   const params = { projectId: projectId };
-  console.log("🐛 About to invoke list_recordings with params:", params);
-  console.log("🐛 JSON.stringify(params):", JSON.stringify(params));
 
   try {
     const result = await invoke<Recording[]>("list_recordings", params);
-    console.log("🐛 invoke successful, result:", result);
     return result;
   } catch (error) {
-    console.error("🐛 invoke failed with error:", error);
+    console.error("Failed to list recordings:", error);
     throw error;
   }
 }
 
+/**
+ * Saves the current transcription session as a recording
+ * @param name - User-friendly name for the recording
+ * @param summary - Optional summary text for the recording
+ * @param keyPoints - Optional array of key points extracted from the transcript
+ * @param actionItems - Optional array of action items identified in the transcript
+ * @returns Promise that resolves to the saved Recording object
+ * @throws Error if saving fails or no active transcription session exists
+ */
 export async function saveRecording(
   name: string,
   summary?: string,
@@ -88,21 +106,23 @@ export async function deleteRecording(recordingId: string): Promise<void> {
 }
 
 // Transcription Commands
+
+/**
+ * Starts real-time transcription using the specified audio device and API configuration
+ * @param deviceId - Audio input device identifier obtained from listAudioDevices
+ * @param apiKey - AssemblyAI API key for transcription service
+ * @param claudeApiKey - Optional Claude API key for text enhancement
+ * @param projectId - Optional project ID for organizing recordings
+ * @param refinementConfig - Configuration for text enhancement options
+ * @throws Error if transcription fails to start or API keys are invalid
+ */
 export async function startTranscription(
   deviceId: string,
   apiKey: string,
   claudeApiKey?: string,
   projectId?: string,
-  refinementConfig?: any,
+  refinementConfig?: RefinementConfig,
 ): Promise<void> {
-  console.log("🐛 tauri.startTranscription called with:", {
-    deviceId,
-    apiKey,
-    claudeApiKey,
-    projectId,
-    refinementConfig,
-  });
-
   // WORKAROUND: Tauri is transforming snake_case back to camelCase, so send camelCase
   const params = {
     deviceId: deviceId,
@@ -112,14 +132,10 @@ export async function startTranscription(
     refinementConfig: refinementConfig,
   };
 
-  console.log("🐛 About to invoke start_transcription with params:", params);
-  console.log("🐛 JSON.stringify(params):", JSON.stringify(params));
-
   try {
-    const result = await invoke("start_transcription", params);
-    console.log("🐛 invoke successful, result:", result);
+    await invoke("start_transcription", params);
   } catch (error) {
-    console.error("🐛 invoke failed with error:", error);
+    console.error("Failed to start transcription:", error);
     throw error;
   }
 }

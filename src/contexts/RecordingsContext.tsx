@@ -81,11 +81,19 @@ export function RecordingsProvider({
 
   const handleRecordingSaved = useCallback((recording: Recording) => {
     console.log('Recording saved via real-time event:', recording);
-    setRecordings((prev) => {
-      // Check if recording already exists to avoid duplicates
-      const exists = prev.some(r => r.id === recording.id);
-      if (exists) return prev;
-      return [recording, ...prev];
+    // This event is the same as recording_created, so we handle it there
+    // to avoid duplicates. Just remove optimistic operations here.
+    setOptimisticOperations(prev => {
+      const next = new Map(prev);
+      // Find and remove any optimistic recording with matching name
+      for (const [key, optimisticRecording] of prev) {
+        if (optimisticRecording.name === recording.name ||
+            optimisticRecording.project_id === recording.project_id) {
+          next.delete(key);
+          break;
+        }
+      }
+      return next;
     });
   }, []);
 
@@ -215,6 +223,17 @@ export function RecordingsProvider({
   };
 
   const renameRecording = async (recordingId: string, newName: string) => {
+    // Check if this is an optimistic recording (temporary ID)
+    if (recordingId.startsWith('temp-')) {
+      throw new Error("Cannot rename recording that is still being saved");
+    }
+
+    // Check if recording exists in real recordings (not optimistic)
+    const realRecording = recordings.find(r => r.id === recordingId && !r.id.startsWith('temp-'));
+    if (!realRecording) {
+      throw new Error("Recording not found or still being processed");
+    }
+
     // Store original data for potential rollback
     const originalRecordings = recordings;
     const originalCurrentRecording = currentRecording;

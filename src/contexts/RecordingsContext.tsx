@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Recording, TranscriptSummary } from "@/lib/types";
 import { useProjects } from "./ProjectsContext";
+import { useRecordingEvents } from "@/hooks/use-realtime-events";
 import * as tauri from "@/lib/tauri";
 
 interface RecordingsContextType {
@@ -9,6 +10,7 @@ interface RecordingsContextType {
   currentRecording: Recording | null;
   lastSummary: TranscriptSummary | null;
   loading: boolean;
+  optimisticOperations: Map<string, Recording>;
   loadRecordings: () => Promise<void>;
   saveRecording: (name: string, transcript: string) => Promise<void>;
   renameRecording: (recordingId: string, newName: string) => Promise<void>;
@@ -16,6 +18,7 @@ interface RecordingsContextType {
   generateSummary: (recordingId: string) => Promise<void>;
   exportRecording: (recordingId: string, format: "txt" | "json") => Promise<void>;
   setCurrentRecording: (recording: Recording | null) => void;
+  refreshRecordings: () => Promise<void>;
 }
 
 const RecordingsContext = createContext<RecordingsContextType | null>(null);
@@ -33,7 +36,91 @@ export function RecordingsProvider({
     null
   );
   const [loading, setLoading] = useState(false);
+  const [optimisticOperations, setOptimisticOperations] = useState<Map<string, Recording>>(new Map());
   const { currentProject } = useProjects();
+
+  // Real-time event handlers
+  const handleRecordingCreated = useCallback((recording: Recording) => {
+    console.log('Recording created via real-time event:', recording);
+    setRecordings((prev) => {
+      // Check if recording already exists to avoid duplicates
+      const exists = prev.some(r => r.id === recording.id);
+      if (exists) return prev;
+      return [recording, ...prev];
+    });
+
+    // Remove any optimistic operation
+    setOptimisticOperations(prev => {
+      const next = new Map(prev);
+      // Find and remove any optimistic recording with matching name
+      for (const [key, optimisticRecording] of prev) {
+        if (optimisticRecording.name === recording.name) {
+          next.delete(key);
+          break;
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleRecordingUpdated = useCallback((recording: Recording) => {
+    console.log('Recording updated via real-time event:', recording);
+    setRecordings((prev) => prev.map(r => r.id === recording.id ? recording : r));
+
+    // Update current recording if it's the one that was updated
+    setCurrentRecording(current => current?.id === recording.id ? recording : current);
+  }, []);
+
+  const handleRecordingDeleted = useCallback((payload: { id: string }) => {
+    console.log('Recording deleted via real-time event:', payload.id);
+    setRecordings((prev) => prev.filter(r => r.id !== payload.id));
+
+    // Clear current recording if it's the one that was deleted
+    setCurrentRecording(current => current?.id === payload.id ? null : current);
+  }, []);
+
+  const handleRecordingSaved = useCallback((recording: Recording) => {
+    console.log('Recording saved via real-time event:', recording);
+    setRecordings((prev) => {
+      // Check if recording already exists to avoid duplicates
+      const exists = prev.some(r => r.id === recording.id);
+      if (exists) return prev;
+      return [recording, ...prev];
+    });
+  }, []);
+
+  const handleRecordingSummaryGenerated = useCallback((recording: Recording) => {
+    console.log('Recording summary generated via real-time event:', recording);
+    setRecordings((prev) => prev.map(r => r.id === recording.id ? recording : r));
+
+    // Update current recording if it's the one with the new summary
+    setCurrentRecording(current => current?.id === recording.id ? recording : current);
+
+    // Update lastSummary if this is the current recording
+    if (currentRecording?.id === recording.id) {
+      const summary: TranscriptSummary = {
+        summary: recording.summary || "",
+        key_points: recording.key_points,
+        action_items: recording.action_items,
+        metadata: {
+          duration_seconds: recording.metadata.duration_seconds,
+          chunk_count: recording.metadata.chunk_count,
+          word_count: recording.metadata.word_count,
+          timestamp: new Date(recording.created_at * 1000).toISOString(),
+        },
+      };
+      setLastSummary(summary);
+    }
+  }, [currentRecording]);
+
+  // Set up real-time event listeners
+  useRecordingEvents({
+    onRecordingCreated: handleRecordingCreated,
+    onRecordingUpdated: handleRecordingUpdated,
+    onRecordingDeleted: handleRecordingDeleted,
+    onRecordingSaved: handleRecordingSaved,
+    onRecordingSummaryGenerated: handleRecordingSummaryGenerated,
+  });
 
   // Load recordings when current project changes
   useEffect(() => {
@@ -60,22 +147,67 @@ export function RecordingsProvider({
     }
   };
 
+  const refreshRecordings = useCallback(async () => {
+    if (!currentProject) return;
+
+    // Non-loading refresh for real-time updates
+    try {
+      const recordingsList = await tauri.listRecordings(currentProject.id);
+      setRecordings(recordingsList);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to refresh recordings:", errorMessage);
+    }
+  }, [currentProject]);
+
   const saveRecording = async (name: string, _transcript: string) => {
     if (!currentProject) {
       throw new Error("No project selected");
     }
 
+    // Generate optimistic ID
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticRecording: Recording = {
+      id: optimisticId,
+      project_id: currentProject.id,
+      name,
+      raw_transcript: _transcript,
+      enhanced_transcript: "",
+      summary: null,
+      key_points: [],
+      action_items: [],
+      created_at: Date.now(),
+      status: "Recording",
+      metadata: {
+        duration_seconds: 0,
+        chunk_count: 0,
+        word_count: _transcript.split(' ').length,
+        turn_count: 1,
+        average_confidence: 0.95,
+      },
+    };
+
+    // Add optimistic update
+    setOptimisticOperations(prev => new Map(prev).set(optimisticId, optimisticRecording));
+
     try {
       // The backend save_recording command saves from the current session
       // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
-      const recording = await invoke<Recording>("save_recording", {
+      await invoke<Recording>("save_recording", {
         name,
         summary: null,
         keyPoints: [],
         actionItems: [],
       });
-      setRecordings((prev) => [recording, ...prev]);
+      // Real recording will be added via real-time event
     } catch (error) {
+      // Remove optimistic update on error
+      setOptimisticOperations(prev => {
+        const next = new Map(prev);
+        next.delete(optimisticId);
+        return next;
+      });
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to save recording:", errorMessage);
       throw error;
@@ -83,17 +215,28 @@ export function RecordingsProvider({
   };
 
   const renameRecording = async (recordingId: string, newName: string) => {
-    try {
-      await tauri.renameRecording(recordingId, newName);
-      setRecordings((prev) =>
-        prev.map((r) => (r.id === recordingId ? { ...r, name: newName } : r))
+    // Store original data for potential rollback
+    const originalRecordings = recordings;
+    const originalCurrentRecording = currentRecording;
+
+    // Optimistically update recording name
+    setRecordings((prev) =>
+      prev.map((r) => (r.id === recordingId ? { ...r, name: newName } : r))
+    );
+    if (currentRecording?.id === recordingId) {
+      setCurrentRecording((prev) =>
+        prev ? { ...prev, name: newName } : null
       );
-      if (currentRecording?.id === recordingId) {
-        setCurrentRecording((prev) =>
-          prev ? { ...prev, name: newName } : null
-        );
-      }
+    }
+
+    try {
+      // Real update will be confirmed via real-time event
+      await tauri.renameRecording(recordingId, newName);
     } catch (error) {
+      // Rollback optimistic changes on error
+      setRecordings(originalRecordings);
+      setCurrentRecording(originalCurrentRecording);
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to rename recording:", errorMessage);
       throw error;
@@ -101,13 +244,24 @@ export function RecordingsProvider({
   };
 
   const deleteRecording = async (recordingId: string) => {
+    // Store original state for potential rollback
+    const originalRecordings = recordings;
+    const originalCurrentRecording = currentRecording;
+
+    // Optimistically remove recording
+    setRecordings((prev) => prev.filter((r) => r.id !== recordingId));
+    if (currentRecording?.id === recordingId) {
+      setCurrentRecording(null);
+    }
+
     try {
+      // Real deletion will be confirmed via real-time event
       await tauri.deleteRecording(recordingId);
-      setRecordings((prev) => prev.filter((r) => r.id !== recordingId));
-      if (currentRecording?.id === recordingId) {
-        setCurrentRecording(null);
-      }
     } catch (error) {
+      // Rollback optimistic changes on error
+      setRecordings(originalRecordings);
+      setCurrentRecording(originalCurrentRecording);
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to delete recording:", errorMessage);
       throw error;
@@ -126,29 +280,11 @@ export function RecordingsProvider({
       }
 
       // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
-      const recording = await invoke<Recording>("generate_recording_summary", {
+      // Real summary will be updated via real-time event
+      await invoke<Recording>("generate_recording_summary", {
         recordingId: recordingId,
         claudeApiKey: claudeApiKey,
       });
-
-      // Update recordings list
-      setRecordings((prev) =>
-        prev.map((r) => (r.id === recordingId ? recording : r))
-      );
-
-      // Create summary object for lastSummary
-      const summary: TranscriptSummary = {
-        summary: recording.summary || "",
-        key_points: recording.key_points,
-        action_items: recording.action_items,
-        metadata: {
-          duration_seconds: recording.metadata.duration_seconds,
-          chunk_count: recording.metadata.chunk_count,
-          word_count: recording.metadata.word_count,
-          timestamp: new Date(recording.created_at * 1000).toISOString(),
-        },
-      };
-      setLastSummary(summary);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to generate summary:", errorMessage);
@@ -188,13 +324,20 @@ export function RecordingsProvider({
     }
   };
 
+  // Combine real recordings with optimistic operations for display
+  const displayRecordings = [
+    ...recordings,
+    ...Array.from(optimisticOperations.values())
+  ];
+
   return (
     <RecordingsContext.Provider
       value={{
-        recordings,
+        recordings: displayRecordings,
         currentRecording,
         lastSummary,
         loading,
+        optimisticOperations,
         loadRecordings,
         saveRecording,
         renameRecording,
@@ -202,6 +345,7 @@ export function RecordingsProvider({
         generateSummary,
         exportRecording,
         setCurrentRecording,
+        refreshRecordings,
       }}
     >
       {children}

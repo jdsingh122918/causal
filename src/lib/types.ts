@@ -100,7 +100,12 @@ export interface AppSettings {
 // UI State Types
 export type TabName = "recording" | "summary";
 
-export type RecordingStatus = "idle" | "recording" | "processing" | "completed";
+export type RecordingStatus =
+  | "idle"
+  | "recording"
+  | "processing"
+  | "completed"
+  | "error";
 
 // Turn Buffer for smoother UI updates
 export interface TurnBufferItem {

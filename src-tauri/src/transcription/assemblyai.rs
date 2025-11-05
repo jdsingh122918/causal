@@ -253,7 +253,7 @@ impl AssemblyAIClient {
                             break;
                         }
 
-                        if sample_count % (48000 * 10) == 0 {
+                        if sample_count.is_multiple_of(48000 * 10) {
                             // Log every 10 seconds (at 48kHz)
                             tracing::info!(
                                 "🎤 Audio streaming: ~{:.0}s",

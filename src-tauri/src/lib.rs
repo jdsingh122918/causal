@@ -1,17 +1,63 @@
+//! # Causal Desktop Application - Tauri Backend
+//!
+//! This is the Rust backend for the Causal desktop application, built with Tauri v2.
+//! Causal is a real-time AI-powered transcription application that captures audio,
+//! transcribes it using AssemblyAI's Universal Streaming API, and enhances the
+//! transcription using Claude AI.
+//!
+//! ## Architecture Overview
+//!
+//! The backend is organized into several key modules:
+//!
+//! - [`database`] - SQLite database operations for projects and recordings
+//! - [`transcription`] - Real-time audio capture and transcription processing
+//! - [`logging`] - Structured logging and metrics collection
+//! - [`error`] - Centralized error handling types
+//!
+//! ## Key Features
+//!
+//! - **Real-time Audio Processing**: High-performance audio capture with buffer pooling
+//! - **Streaming Transcription**: WebSocket-based streaming to AssemblyAI
+//! - **AI Enhancement**: Text refinement using Claude AI
+//! - **Project Management**: Multi-project support with SQLite storage
+//! - **Performance Monitoring**: Comprehensive metrics and logging
+//!
+//! ## Usage
+//!
+//! The application is launched via the [`run()`] function, which initializes all
+//! components and starts the Tauri application loop.
+
 mod database;
+mod error;
 mod logging;
 mod transcription;
 
 use database::Database;
+// Note: Error types available for future use
+// use error::{CausalError, CausalResult};
 use logging::{MetricsCollector, MetricsSnapshot, LogEntry, LogFileInfo, LoggingStats};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use transcription::commands::AppState;
 
-/// Global logging state
+/// Global logging state shared across the application.
+///
+/// This structure manages the application's logging configuration and metrics collection.
+/// It is stored as Tauri managed state and can be accessed from any command handler.
+///
+/// # Fields
+///
+/// - `log_dir`: Directory where log files are stored
+/// - `metrics`: Collector for application performance metrics
+///
+/// # Thread Safety
+///
+/// This struct is wrapped in a `Mutex` when used as Tauri state to ensure thread-safe access.
 pub struct LoggingState {
+    /// Directory where log files are stored
     pub log_dir: PathBuf,
+    /// Metrics collector for application performance monitoring
     pub metrics: MetricsCollector,
 }
 
@@ -38,11 +84,19 @@ fn reset_metrics(logging_state: State<Mutex<LoggingState>>) -> Result<String, St
 
 #[tauri::command]
 fn get_recent_logs(
+    app: AppHandle,
     logging_state: State<Mutex<LoggingState>>,
     limit: usize,
 ) -> Result<Vec<LogEntry>, String> {
     let state = logging_state.lock().map_err(|e| format!("Lock error: {}", e))?;
-    logging::commands::get_recent_logs(&state.log_dir, limit)
+    let result = logging::commands::get_recent_logs(&state.log_dir, limit)?;
+
+    // Emit event for log data refresh
+    if let Err(e) = app.emit("logs_refreshed", serde_json::json!({"count": result.len()})) {
+        tracing::error!("Failed to emit logs_refreshed event: {}", e);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -79,6 +133,27 @@ fn clear_all_logs(logging_state: State<Mutex<LoggingState>>) -> Result<String, S
     logging::commands::clear_all_logs(&state.log_dir)
 }
 
+/// Main entry point for the Causal desktop application.
+///
+/// This function initializes all core components and starts the Tauri application:
+///
+/// 1. **Logging System**: Configures structured logging with file rotation
+/// 2. **Database**: Sets up SQLite with WAL mode and performance optimizations
+/// 3. **Tauri Application**: Registers all commands and starts the event loop
+///
+/// # Panics
+///
+/// This function will exit the process with code 1 if critical components fail to initialize:
+/// - Logging system initialization failure
+/// - Database initialization failure
+/// - Tauri application startup failure
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// // This is typically called from main.rs
+/// causal_lib::run();
+/// ```
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logging with fallback directory
@@ -87,12 +162,23 @@ pub fn run() {
     let log_config = logging::LoggingConfig::default()
         .with_log_dir(fallback_log_dir.clone());
 
-    logging::init_logging(log_config)
-        .expect("Failed to initialize logging");
+    if let Err(e) = logging::init_logging(log_config) {
+        eprintln!("Critical error: Failed to initialize logging: {}", e);
+        eprintln!("This error prevents the application from starting.");
+        std::process::exit(1);
+    }
 
     tracing::info!("Causal application starting");
 
-    let database = Database::new().expect("Failed to initialize database");
+    let database = match Database::new() {
+        Ok(db) => db,
+        Err(e) => {
+            tracing::error!("Critical error: Failed to initialize database: {}", e);
+            eprintln!("Critical error: Failed to initialize database: {}", e);
+            eprintln!("This error prevents the application from starting.");
+            std::process::exit(1);
+        }
+    };
     let metrics = MetricsCollector::new();
     let logging_state = Mutex::new(LoggingState {
         log_dir: fallback_log_dir,

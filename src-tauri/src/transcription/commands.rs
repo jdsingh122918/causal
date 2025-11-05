@@ -339,13 +339,21 @@ pub async fn start_transcription(
     // Store the audio handle so we can stop it later
     *state.audio_handle.lock().await = Some(audio_handle);
 
+    // Emit transcription started event
+    if let Err(e) = app.emit("transcription_started", serde_json::json!({
+        "device_id": device_id,
+        "project_id": project_id
+    })) {
+        tracing::error!("Failed to emit transcription_started event: {}", e);
+    }
+
     tracing::info!("Real-time transcription started successfully");
     Ok(())
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(app, state))]
 #[tauri::command]
-pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn stop_transcription(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     tracing::info!("Stopping transcription");
 
     // Check if already stopped (transcription may have stopped due to error)
@@ -397,6 +405,11 @@ pub async fn stop_transcription(state: State<'_, AppState>) -> Result<(), String
 
     // Mark as inactive
     *state.transcription_active.lock().await = false;
+
+    // Emit transcription stopped event
+    if let Err(e) = app.emit("transcription_stopped", serde_json::json!({})) {
+        tracing::error!("Failed to emit transcription_stopped event: {}", e);
+    }
 
     // Record completion metrics
     if let Some(start) = start_time {

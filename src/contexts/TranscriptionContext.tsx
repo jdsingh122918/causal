@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   TranscriptResult,
@@ -9,6 +9,7 @@ import {
 import * as tauri from "@/lib/tauri";
 import { useSettings } from "./SettingsContext";
 import { useProjects } from "./ProjectsContext";
+import { useTranscriptionEvents } from "@/hooks/use-realtime-events";
 
 interface TranscriptionState {
   isRecording: boolean;
@@ -52,7 +53,57 @@ export function TranscriptionProvider({
   const { selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig } = useSettings();
   const { currentProject } = useProjects();
 
-  // Listen for transcript results
+  // Real-time event handlers for transcription lifecycle
+  const handleTranscriptionStarted = useCallback((payload: any) => {
+    console.log('Transcription started via real-time event:', payload);
+    setState((prev) => ({
+      ...prev,
+      isRecording: true,
+      status: "recording",
+    }));
+  }, []);
+
+  const handleTranscriptionStopped = useCallback(() => {
+    console.log('Transcription stopped via real-time event');
+    setState((prev) => ({
+      ...prev,
+      isRecording: false,
+      status: "completed",
+    }));
+  }, []);
+
+  const handleTranscriptionError = useCallback((error: string) => {
+    console.error('Transcription error via real-time event:', error);
+    setState((prev) => ({
+      ...prev,
+      isRecording: false,
+      status: "error",
+    }));
+  }, []);
+
+  const handleSessionCleared = useCallback(() => {
+    console.log('Session cleared via real-time event');
+    setState({
+      isRecording: false,
+      status: "idle",
+      transcriptText: "",
+      cleanedTranscript: "",
+      turns: new Map(),
+      enhancedBuffers: new Map(),
+      turnBuffer: [],
+      latestTurnOrder: 0,
+    });
+  }, []);
+
+  // Set up real-time event listeners for transcription lifecycle
+  useTranscriptionEvents({
+    onTranscriptionStarted: handleTranscriptionStarted,
+    onTranscriptionStopped: handleTranscriptionStopped,
+    onTranscriptionError: handleTranscriptionError,
+    onSessionCleared: handleSessionCleared,
+  });
+
+  // Listen for transcript results (keeping existing logic but making it more robust)
   useEffect(() => {
     let unlistenTranscript: (() => void) | null = null;
     let unlistenEnhanced: (() => void) | null = null;
@@ -133,6 +184,19 @@ export function TranscriptionProvider({
         throw new Error("AssemblyAI API key not configured. Please set it in Settings.");
       }
 
+      // Clear any existing transcript first
+      setState({
+        isRecording: false,
+        status: "idle",
+        transcriptText: "",
+        cleanedTranscript: "",
+        turns: new Map(),
+        enhancedBuffers: new Map(),
+        turnBuffer: [],
+        latestTurnOrder: 0,
+      });
+
+      // The backend will emit real-time events to update state
       await tauri.startTranscription(
         selectedDeviceId,
         assemblyApiKey,
@@ -140,29 +204,32 @@ export function TranscriptionProvider({
         currentProject?.id || undefined,
         refinementConfig
       );
-      setState((prev) => ({
-        ...prev,
-        isRecording: true,
-        status: "recording",
-      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to start recording:", errorMessage);
+      // Update state to show error
+      setState((prev) => ({
+        ...prev,
+        isRecording: false,
+        status: "error",
+      }));
       throw error;
     }
   };
 
   const stopRecording = async () => {
     try {
+      // The backend will emit real-time events to update state
       await tauri.stopTranscription();
-      setState((prev) => ({
-        ...prev,
-        isRecording: false,
-        status: "completed",
-      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Failed to stop recording:", errorMessage);
+      // Update state to show error
+      setState((prev) => ({
+        ...prev,
+        isRecording: false,
+        status: "error",
+      }));
       throw error;
     }
   };

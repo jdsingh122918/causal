@@ -2,11 +2,12 @@ use crate::database::{Database, Recording};
 use crate::LoggingState;
 use crate::transcription::commands::AppState;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 /// Save the current transcription session as a recording
 #[tauri::command]
 pub async fn save_recording(
+    app: AppHandle,
     db: State<'_, Database>,
     state: State<'_, AppState>,
     logging_state: State<'_, Mutex<LoggingState>>,
@@ -34,7 +35,7 @@ pub async fn save_recording(
 
     // Convert session data to recording
     let mut recording = Recording::new(
-        project_id,
+        project_id.clone(),
         name,
         session.raw_transcript,
         session.enhanced_transcript,
@@ -56,8 +57,18 @@ pub async fn save_recording(
         log_state.metrics.recording_saved();
     }
 
+    // Emit real-time event for recording save
+    if let Err(e) = app.emit("recording_saved", &saved) {
+        tracing::error!("Failed to emit recording_saved event: {}", e);
+    }
+
     // Clear the session after successful save
     state.session_manager.clear_session().await;
+
+    // Emit session cleared event
+    if let Err(e) = app.emit("session_cleared", serde_json::json!({})) {
+        tracing::error!("Failed to emit session_cleared event: {}", e);
+    }
 
     Ok(saved)
 }
@@ -73,11 +84,18 @@ pub async fn get_current_session(
 /// Set the current project ID
 #[tauri::command]
 pub async fn set_current_project(
+    app: AppHandle,
     state: State<'_, AppState>,
     project_id: Option<String>,
 ) -> Result<(), String> {
     tracing::info!("Setting current project: {:?}", project_id);
-    *state.current_project_id.lock().await = project_id;
+    *state.current_project_id.lock().await = project_id.clone();
+
+    // Emit real-time event for project selection change
+    if let Err(e) = app.emit("current_project_changed", serde_json::json!({"project_id": project_id})) {
+        tracing::error!("Failed to emit current_project_changed event: {}", e);
+    }
+
     Ok(())
 }
 
@@ -89,8 +107,14 @@ pub async fn get_current_project(state: State<'_, AppState>) -> Result<Option<St
 
 /// Clear the current session
 #[tauri::command]
-pub async fn clear_current_session(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn clear_current_session(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     tracing::info!("Clearing current session");
     state.session_manager.clear_session().await;
+
+    // Emit real-time event for session clear
+    if let Err(e) = app.emit("session_cleared", serde_json::json!({})) {
+        tracing::error!("Failed to emit session_cleared event: {}", e);
+    }
+
     Ok(())
 }

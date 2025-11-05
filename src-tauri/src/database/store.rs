@@ -93,6 +93,31 @@ impl Database {
         )
         .map_err(|e| format!("Failed to create index: {}", e))?;
 
+        // Apply database performance optimizations
+        // Note: Some PRAGMA statements return values, so we need to handle them properly
+
+        // Try to enable WAL mode for better concurrency (may not work for in-memory DBs)
+        if let Err(e) = conn.execute("PRAGMA journal_mode=WAL", []) {
+            // WAL mode failed (probably in-memory database), log but continue
+            tracing::debug!("WAL mode not available: {}", e);
+        }
+
+        // Set synchronous mode to NORMAL for better performance while maintaining safety
+        conn.execute("PRAGMA synchronous=NORMAL", [])
+            .map_err(|e| format!("Failed to set synchronous mode: {}", e))?;
+
+        // Increase cache size to 64MB for better performance
+        conn.execute("PRAGMA cache_size=-65536", [])
+            .map_err(|e| format!("Failed to set cache size: {}", e))?;
+
+        // Enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys=ON", [])
+            .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+
+        // Set temp store to memory for faster temporary operations
+        conn.execute("PRAGMA temp_store=MEMORY", [])
+            .map_err(|e| format!("Failed to set temp store: {}", e))?;
+
         Ok(())
     }
 
@@ -509,7 +534,13 @@ impl Database {
 
 impl Default for Database {
     fn default() -> Self {
-        Self::new().expect("Failed to create database")
+        match Self::new() {
+            Ok(db) => db,
+            Err(e) => {
+                eprintln!("Critical error: Failed to create default database: {}", e);
+                panic!("Failed to create default database: {}", e);
+            }
+        }
     }
 }
 

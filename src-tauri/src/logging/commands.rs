@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use regex::Regex;
 
 /// Log entry from file
@@ -32,7 +32,7 @@ pub struct LoggingStats {
 }
 
 /// Get recent log entries
-pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>, String> {
+pub fn get_recent_logs(log_dir: &Path, limit: usize) -> Result<Vec<LogEntry>, String> {
     let current_log = log_dir.join("causal.log");
 
     // If current log doesn't exist, try to find the most recent dated log file
@@ -61,7 +61,7 @@ pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>,
 
         // Sort by filename (most recent date last)
         log_files.sort();
-        log_files.pop().unwrap()
+        log_files.pop().expect("log_files should not be empty - checked above")
     };
 
     let content = fs::read_to_string(&log_file)
@@ -149,7 +149,7 @@ pub fn get_recent_logs(log_dir: &PathBuf, limit: usize) -> Result<Vec<LogEntry>,
 }
 
 /// Get logging statistics
-pub fn get_logging_stats(log_dir: &PathBuf) -> Result<LoggingStats, String> {
+pub fn get_logging_stats(log_dir: &Path) -> Result<LoggingStats, String> {
     if !log_dir.exists() {
         return Err("Log directory does not exist".to_string());
     }
@@ -161,21 +161,19 @@ pub fn get_logging_stats(log_dir: &PathBuf) -> Result<LoggingStats, String> {
     let entries = fs::read_dir(log_dir)
         .map_err(|e| format!("Failed to read log directory: {}", e))?;
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "log" || path.to_string_lossy().contains("causal.log")) {
-                if let Ok(metadata) = fs::metadata(&path) {
-                    total_size += metadata.len();
-                    file_count += 1;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "log" || path.to_string_lossy().contains("causal.log")) {
+            if let Ok(metadata) = fs::metadata(&path) {
+                total_size += metadata.len();
+                file_count += 1;
 
-                    // Extract date from filename if it's an archived log
-                    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                        if filename.starts_with("causal.log.") {
-                            let date_str = filename.trim_start_matches("causal.log.");
-                            if oldest_date.is_none() || Some(date_str) < oldest_date.as_deref() {
-                                oldest_date = Some(date_str.to_string());
-                            }
+                // Extract date from filename if it's an archived log
+                if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                    if filename.starts_with("causal.log.") {
+                        let date_str = filename.trim_start_matches("causal.log.");
+                        if oldest_date.is_none() || Some(date_str) < oldest_date.as_deref() {
+                            oldest_date = Some(date_str.to_string());
                         }
                     }
                 }
@@ -193,7 +191,7 @@ pub fn get_logging_stats(log_dir: &PathBuf) -> Result<LoggingStats, String> {
 }
 
 /// List all log files
-pub fn list_log_files(log_dir: &PathBuf) -> Result<Vec<LogFileInfo>, String> {
+pub fn list_log_files(log_dir: &Path) -> Result<Vec<LogFileInfo>, String> {
     if !log_dir.exists() {
         return Ok(Vec::new());
     }
@@ -202,23 +200,21 @@ pub fn list_log_files(log_dir: &PathBuf) -> Result<Vec<LogFileInfo>, String> {
     let entries = fs::read_dir(log_dir)
         .map_err(|e| format!("Failed to read log directory: {}", e))?;
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "log" || path.to_string_lossy().contains("causal.log")) {
-                if let Ok(metadata) = fs::metadata(&path) {
-                    let is_current = path.file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| n == "causal.log")
-                        .unwrap_or(false);
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "log" || path.to_string_lossy().contains("causal.log")) {
+            if let Ok(metadata) = fs::metadata(&path) {
+                let is_current = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n == "causal.log")
+                    .unwrap_or(false);
 
-                    files.push(LogFileInfo {
-                        path: path.to_string_lossy().to_string(),
-                        size_bytes: metadata.len(),
-                        modified: format!("{:?}", metadata.modified().ok()),
-                        is_current,
-                    });
-                }
+                files.push(LogFileInfo {
+                    path: path.to_string_lossy().to_string(),
+                    size_bytes: metadata.len(),
+                    modified: format!("{:?}", metadata.modified().ok()),
+                    is_current,
+                });
             }
         }
     }
@@ -238,7 +234,7 @@ pub fn list_log_files(log_dir: &PathBuf) -> Result<Vec<LogFileInfo>, String> {
 }
 
 /// Export logs to a file
-pub fn export_logs(log_dir: &PathBuf, output_path: &PathBuf) -> Result<String, String> {
+pub fn export_logs(log_dir: &Path, output_path: &Path) -> Result<String, String> {
     let current_log = log_dir.join("causal.log");
 
     if !current_log.exists() {
@@ -252,7 +248,7 @@ pub fn export_logs(log_dir: &PathBuf, output_path: &PathBuf) -> Result<String, S
 }
 
 /// Clear old log files (keep current)
-pub fn clear_old_logs(log_dir: &PathBuf) -> Result<String, String> {
+pub fn clear_old_logs(log_dir: &Path) -> Result<String, String> {
     if !log_dir.exists() {
         return Ok("No log directory found".to_string());
     }
@@ -301,7 +297,7 @@ pub fn clear_old_logs(log_dir: &PathBuf) -> Result<String, String> {
 }
 
 /// Clear all logs including current
-pub fn clear_all_logs(log_dir: &PathBuf) -> Result<String, String> {
+pub fn clear_all_logs(log_dir: &Path) -> Result<String, String> {
     if !log_dir.exists() {
         return Ok("No log directory found".to_string());
     }
@@ -310,15 +306,12 @@ pub fn clear_all_logs(log_dir: &PathBuf) -> Result<String, String> {
     let entries = fs::read_dir(log_dir)
         .map_err(|e| format!("Failed to read log directory: {}", e))?;
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() && path.to_string_lossy().contains("causal.log") {
-                if fs::remove_file(&path).is_ok() {
-                    deleted_count += 1;
-                }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.to_string_lossy().contains("causal.log")
+            && fs::remove_file(&path).is_ok() {
+                deleted_count += 1;
             }
-        }
     }
 
     Ok(format!("Cleared {} log file(s)", deleted_count))

@@ -1,6 +1,7 @@
 pub mod assemblyai;
 pub mod audio;
 pub mod buffer;
+pub mod buffer_pool;
 pub mod commands;
 pub mod enhancement;
 pub mod recording_commands;
@@ -14,7 +15,7 @@ pub use recording_commands::*;
 use serde::{Deserialize, Serialize};
 
 /// Refinement mode for AI enhancement of transcripts
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RefinementMode {
     /// No AI enhancement, show raw transcription only
@@ -22,13 +23,8 @@ pub enum RefinementMode {
     /// Refine each turn immediately as it arrives
     Realtime,
     /// Buffer multiple turns and refine in chunks
+    #[default]
     Chunked,
-}
-
-impl Default for RefinementMode {
-    fn default() -> Self {
-        Self::Chunked
-    }
 }
 
 /// Configuration for refinement behavior

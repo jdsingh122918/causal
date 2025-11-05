@@ -6,7 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::SystemTime;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateProjectRequest {
@@ -35,6 +35,7 @@ pub struct CreateRecordingRequest {
 // Project commands
 #[tauri::command]
 pub async fn create_project(
+    app: AppHandle,
     db: State<'_, Database>,
     logging_state: State<'_, Mutex<LoggingState>>,
     request: CreateProjectRequest,
@@ -46,6 +47,11 @@ pub async fn create_project(
     // Track metrics
     if let Ok(state) = logging_state.lock() {
         state.metrics.project_created();
+    }
+
+    // Emit real-time event for project creation
+    if let Err(e) = app.emit("project_created", &result) {
+        tracing::error!("Failed to emit project_created event: {}", e);
     }
 
     Ok(result)
@@ -65,24 +71,39 @@ pub async fn get_project(db: State<'_, Database>, id: String) -> Result<Project,
 
 #[tauri::command]
 pub async fn update_project(
+    app: AppHandle,
     db: State<'_, Database>,
     id: String,
     request: UpdateProjectRequest,
 ) -> Result<Project, String> {
     tracing::info!("Updating project: {}", id);
-    db.update_project(&id, request.name, request.description)
-        .await
+    let result = db.update_project(&id, request.name, request.description).await?;
+
+    // Emit real-time event for project update
+    if let Err(e) = app.emit("project_updated", &result) {
+        tracing::error!("Failed to emit project_updated event: {}", e);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn delete_project(db: State<'_, Database>, id: String) -> Result<(), String> {
+pub async fn delete_project(app: AppHandle, db: State<'_, Database>, id: String) -> Result<(), String> {
     tracing::info!("Deleting project: {}", id);
-    db.delete_project(&id).await
+    db.delete_project(&id).await?;
+
+    // Emit real-time event for project deletion
+    if let Err(e) = app.emit("project_deleted", serde_json::json!({"id": id})) {
+        tracing::error!("Failed to emit project_deleted event: {}", e);
+    }
+
+    Ok(())
 }
 
 // Recording commands
 #[tauri::command]
 pub async fn create_recording(
+    app: AppHandle,
     db: State<'_, Database>,
     request: CreateRecordingRequest,
 ) -> Result<Recording, String> {
@@ -105,7 +126,14 @@ pub async fn create_recording(
         recording = recording.with_summary(summary, request.key_points, request.action_items);
     }
 
-    db.create_recording(recording).await
+    let result = db.create_recording(recording).await?;
+
+    // Emit real-time event for recording creation
+    if let Err(e) = app.emit("recording_created", &result) {
+        tracing::error!("Failed to emit recording_created event: {}", e);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -125,18 +153,33 @@ pub async fn get_recording(db: State<'_, Database>, id: String) -> Result<Record
 
 #[tauri::command]
 pub async fn update_recording_name(
+    app: AppHandle,
     db: State<'_, Database>,
     id: String,
     name: String,
 ) -> Result<Recording, String> {
     tracing::info!("Updating recording name: {} to {}", id, name);
-    db.update_recording_name(&id, name).await
+    let result = db.update_recording_name(&id, name).await?;
+
+    // Emit real-time event for recording update
+    if let Err(e) = app.emit("recording_updated", &result) {
+        tracing::error!("Failed to emit recording_updated event: {}", e);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn delete_recording(db: State<'_, Database>, id: String) -> Result<(), String> {
+pub async fn delete_recording(app: AppHandle, db: State<'_, Database>, id: String) -> Result<(), String> {
     tracing::info!("Deleting recording: {}", id);
-    db.delete_recording(&id).await
+    db.delete_recording(&id).await?;
+
+    // Emit real-time event for recording deletion
+    if let Err(e) = app.emit("recording_deleted", serde_json::json!({"id": id})) {
+        tracing::error!("Failed to emit recording_deleted event: {}", e);
+    }
+
+    Ok(())
 }
 
 // Utility commands
@@ -154,6 +197,7 @@ pub async fn get_database_stats(db: State<'_, Database>) -> Result<DatabaseStats
 /// Generate or regenerate summary for an existing recording
 #[tauri::command]
 pub async fn generate_recording_summary(
+    app: AppHandle,
     db: State<'_, Database>,
     recording_id: String,
     claude_api_key: String,
@@ -192,6 +236,11 @@ pub async fn generate_recording_summary(
         recording.action_items.clone(),
     )
     .await?;
+
+    // Emit real-time event for recording summary generation
+    if let Err(e) = app.emit("recording_summary_generated", &recording) {
+        tracing::error!("Failed to emit recording_summary_generated event: {}", e);
+    }
 
     Ok(recording)
 }

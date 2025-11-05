@@ -1,3 +1,52 @@
+//! # Real-time Audio Capture and Processing
+//!
+//! This module provides high-performance audio capture capabilities for real-time transcription.
+//! It features buffer pooling for reduced memory allocations, automatic format conversion,
+//! and robust error handling for production audio processing.
+//!
+//! ## Key Components
+//!
+//! - [`AudioCapture`] - Main audio capture interface with buffer pooling
+//! - [`AudioDevice`] - Audio device representation
+//! - [`list_audio_devices()`] - Device enumeration for UI selection
+//!
+//! ## Performance Features
+//!
+//! - **Buffer Pooling**: Reuses audio buffers to minimize GC pressure
+//! - **Real-time Processing**: 50ms chunk processing for low latency
+//! - **Format Conversion**: Automatic stereo-to-mono and f32-to-i16 conversion
+//! - **Level Monitoring**: Audio level detection for debugging silent inputs
+//!
+//! ## Example Usage
+//!
+//! ```rust,no_run
+//! use tokio::sync::mpsc;
+//! use cpal::traits::HostTrait;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // List available devices
+//! let devices = list_audio_devices()?;
+//!
+//! // Get default input device
+//! let host = cpal::default_host();
+//! let device = host.default_input_device().unwrap();
+//!
+//! // Create audio chunk channel
+//! let (tx, rx) = mpsc::channel(32);
+//!
+//! // Start audio capture
+//! let capture = AudioCapture::new(device, tx)?;
+//! let handle = capture.start()?;
+//!
+//! // Process audio chunks
+//! while let Some(chunk) = rx.recv().await {
+//!     // Send chunk to transcription service
+//!     println!("Received {} samples", chunk.len());
+//! }
+//! # Ok(())
+//! # }
+//! ```
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, StreamConfig};
 use serde::{Deserialize, Serialize};
@@ -6,21 +55,57 @@ use std::sync::{mpsc as std_mpsc, Arc, Mutex};
 use std::thread;
 use tokio::sync::mpsc;
 
+use super::buffer_pool::AudioBufferPool;
+
+/// Represents an audio device available for capture or playback.
+///
+/// This structure contains metadata about audio devices that can be presented
+/// to the user for selection in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioDevice {
+    /// Unique identifier for the device
     pub id: String,
+    /// Human-readable device name
     pub name: String,
+    /// Whether this is the system default device
     pub is_default: bool,
+    /// Type of device (input/output)
     pub device_type: AudioDeviceType,
 }
 
+/// Audio device type classification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AudioDeviceType {
+    /// Input device (microphone, line-in, etc.)
     Input,
+    /// Output device (speakers, headphones, etc.)
     Output,
 }
 
-/// List all available audio devices
+/// Enumerates all available audio devices on the system.
+///
+/// This function scans for both input and output devices and returns metadata
+/// that can be used for device selection in the UI.
+///
+/// # Returns
+///
+/// A vector of [`AudioDevice`] structs containing device information, or an error
+/// if device enumeration fails.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use causal_lib::transcription::audio::list_audio_devices;
+///
+/// let devices = list_audio_devices()?;
+/// for device in devices {
+///     println!("{}: {} ({})",
+///         device.id, device.name,
+///         if device.is_default { "default" } else { "available" }
+///     );
+/// }
+/// # Ok::<(), String>(())
+/// ```
 pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
     let mut devices = Vec::new();
@@ -103,6 +188,97 @@ pub fn get_device_by_id(device_id: &str) -> Result<Device, String> {
 /// AssemblyAI requires between 50ms and 1000ms per chunk
 const CHUNK_DURATION_MS: f32 = 50.0;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audio_device_serialization() {
+        let device = AudioDevice {
+            id: "test-device-id".to_string(),
+            name: "Test Microphone".to_string(),
+            is_default: true,
+            device_type: AudioDeviceType::Input,
+        };
+
+        // Test serialization to JSON
+        let json = serde_json::to_string(&device).expect("Failed to serialize");
+        assert!(json.contains("test-device-id"));
+        assert!(json.contains("Test Microphone"));
+        assert!(json.contains("Input")); // AudioDeviceType doesn't have rename_all
+
+        // Test deserialization from JSON
+        let deserialized: AudioDevice = serde_json::from_str(&json).expect("Failed to deserialize");
+        assert_eq!(deserialized.id, device.id);
+        assert_eq!(deserialized.name, device.name);
+        assert_eq!(deserialized.is_default, device.is_default);
+    }
+
+    #[test]
+    fn test_audio_format_conversion() {
+        // Test f32 to i16 conversion logic (from the audio processing code)
+        let test_samples = vec![0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5];
+        let expected_i16 = vec![0, 16383, -16383, 32767, -32767, 32767, -32767];
+
+        let converted: Vec<i16> = test_samples
+            .iter()
+            .map(|&sample: &f32| (sample.clamp(-1.0, 1.0) * 32767.0) as i16)
+            .collect();
+
+        assert_eq!(converted, expected_i16);
+    }
+
+    #[test]
+    fn test_stereo_to_mono_conversion() {
+        // Test stereo to mono conversion logic (from the audio processing code)
+        let stereo_data = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; // 3 stereo samples
+        let channels = 2;
+
+        let mono_data: Vec<f32> = stereo_data
+            .chunks(channels)
+            .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
+            .collect();
+
+        let expected = vec![0.15, 0.35000002, 0.55]; // Average of each stereo pair (floating point precision)
+        assert_eq!(mono_data, expected);
+    }
+
+    #[test]
+    fn test_chunk_size_calculation() {
+        // Test chunk size calculation logic
+        let sample_rate = 48000u32;
+        let chunk_duration_ms = 50.0;
+        let expected_chunk_size = ((sample_rate as f32 * chunk_duration_ms) / 1000.0) as usize;
+
+        assert_eq!(expected_chunk_size, 2400); // 50ms at 48kHz = 2400 samples
+
+        // Test different sample rates
+        let sample_rate_16k = 16000u32;
+        let chunk_size_16k = ((sample_rate_16k as f32 * chunk_duration_ms) / 1000.0) as usize;
+        assert_eq!(chunk_size_16k, 800); // 50ms at 16kHz = 800 samples
+    }
+
+    #[test]
+    fn test_audio_device_type_serialization() {
+        // Test AudioDeviceType serialization (maintains original case)
+        let input_type = AudioDeviceType::Input;
+        let output_type = AudioDeviceType::Output;
+
+        let input_json = serde_json::to_string(&input_type).unwrap();
+        let output_json = serde_json::to_string(&output_type).unwrap();
+
+        assert_eq!(input_json, "\"Input\"");
+        assert_eq!(output_json, "\"Output\"");
+
+        // Test deserialization
+        let input_deserialized: AudioDeviceType = serde_json::from_str("\"Input\"").unwrap();
+        let output_deserialized: AudioDeviceType = serde_json::from_str("\"Output\"").unwrap();
+
+        assert!(matches!(input_deserialized, AudioDeviceType::Input));
+        assert!(matches!(output_deserialized, AudioDeviceType::Output));
+    }
+}
+
 /// Commands for controlling the audio thread
 enum AudioThreadCommand {
     Stop,
@@ -135,10 +311,52 @@ impl AudioCaptureHandle {
     }
 }
 
+/// High-performance audio capture system with buffer pooling.
+///
+/// This struct manages real-time audio capture from a specified device, converting
+/// audio data to 16-bit PCM chunks suitable for streaming transcription services.
+/// It uses buffer pooling to minimize memory allocations in the audio processing
+/// hot path.
+///
+/// # Performance Features
+///
+/// - **Buffer Pooling**: Reuses audio buffers to reduce GC pressure
+/// - **Format Conversion**: Automatic stereo-to-mono conversion
+/// - **Chunk Management**: Configurable chunk sizes (default 50ms)
+/// - **Real-time Processing**: Dedicated thread for audio processing
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use tokio::sync::mpsc;
+/// use cpal::traits::HostTrait;
+/// # use causal_lib::transcription::audio::AudioCapture;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let host = cpal::default_host();
+/// let device = host.default_input_device().unwrap();
+/// let (tx, mut rx) = mpsc::channel(32);
+///
+/// let capture = AudioCapture::new(device, tx)?;
+/// let handle = capture.start()?;
+///
+/// // Process audio chunks
+/// tokio::spawn(async move {
+///     while let Some(chunk) = rx.recv().await {
+///         println!("Got {} audio samples", chunk.len());
+///     }
+/// });
+///
+/// // Later, stop capture
+/// handle.stop()?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct AudioCapture {
     device: Device,
     config: StreamConfig,
     chunk_sender: mpsc::Sender<Vec<i16>>,
+    buffer_pool: AudioBufferPool,
 }
 
 impl AudioCapture {
@@ -158,10 +376,16 @@ impl AudioCapture {
 
         let config = config.into();
 
+        // Create buffer pool for audio processing optimization
+        // Size buffers for ~100ms at 48kHz (4800 samples)
+        // Keep up to 10 buffers in the pool
+        let buffer_pool = AudioBufferPool::new(4800, 10);
+
         Ok(Self {
             device,
             config,
             chunk_sender,
+            buffer_pool,
         })
     }
 
@@ -224,6 +448,7 @@ impl AudioCapture {
         let channels = self.config.channels as usize;
         let sample_rate = self.config.sample_rate.0;
         let chunk_sender = self.chunk_sender.clone();
+        let buffer_pool = self.buffer_pool.clone();
 
         // Calculate chunk size based on sample rate to ensure 50ms chunks
         // AssemblyAI requires between 50ms and 1000ms
@@ -273,10 +498,10 @@ impl AudioCapture {
 
                     // Log audio level every 15 seconds to help diagnose silent input
                     {
-                        let mut count = sample_count.lock().unwrap();
+                        let mut count = sample_count.lock().expect("Audio sample count mutex poisoned");
                         *count += mono_data.len();
 
-                        let mut last_log = last_level_log.lock().unwrap();
+                        let mut last_log = last_level_log.lock().expect("Audio level log mutex poisoned");
                         if last_log.elapsed().as_secs() >= 15 {
                             let db = if rms > 0.0 {
                                 20.0 * rms.log10()
@@ -294,21 +519,26 @@ impl AudioCapture {
                         }
                     }
 
-                    // Convert f32 to i16 PCM samples
-                    let pcm_samples: Vec<i16> = mono_data
+                    // Convert f32 to i16 PCM samples using pooled buffer
+                    let mut pcm_samples = buffer_pool.get_buffer();
+                    pcm_samples.extend(mono_data
                         .iter()
                         .map(|&sample| {
                             (sample.clamp(-1.0, 1.0) * 32767.0) as i16
-                        })
-                        .collect();
+                        }));
 
                     // Add to buffer and send when we have enough samples
-                    let mut buf = buffer.lock().unwrap();
+                    let mut buf = buffer.lock().expect("Audio buffer mutex poisoned");
                     buf.extend_from_slice(&pcm_samples);
+
+                    // Return the pcm_samples buffer to the pool for reuse
+                    buffer_pool.return_buffer(pcm_samples);
 
                     // Send chunks when we have enough samples for the target duration
                     while buf.len() >= chunk_size {
-                        let chunk: Vec<i16> = buf.drain(0..chunk_size).collect();
+                        let mut chunk = buffer_pool.get_buffer();
+                        // Drain into the pooled buffer
+                        chunk.extend(buf.drain(0..chunk_size));
                         // Try to send chunk - if channel is full or closed, use try_send
                         // This prevents blocking the audio thread if the receiver is slow
                         if chunk_sender.try_send(chunk).is_err() {

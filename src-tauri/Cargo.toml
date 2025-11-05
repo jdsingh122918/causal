@@ -65,6 +65,9 @@ anthropic-sdk = "0.1"
 # UUID generation
 uuid = { version = "1.11", features = ["v4", "serde"] }
 
+# Error handling
+thiserror = "1.0"
+
 # SQLite database
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 

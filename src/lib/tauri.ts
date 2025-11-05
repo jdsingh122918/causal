@@ -90,10 +90,10 @@ export async function saveRecording(
   return await invoke<Recording>("save_recording", {
     name,
     summary: summary || null,
-    key_points: keyPoints || [],
-    action_items: actionItems || [],
-    claude_api_key: claudeApiKey || null,
-    auto_generate_summary: autoGenerateSummary || false,
+    keyPoints: keyPoints || [],
+    actionItems: actionItems || [],
+    claudeApiKey: claudeApiKey || null,
+    autoGenerateSummary: autoGenerateSummary || false,
   });
 }
 

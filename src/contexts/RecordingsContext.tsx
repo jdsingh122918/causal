@@ -83,13 +83,21 @@ export function RecordingsProvider({
 
   const handleRecordingSaved = useCallback((recording: Recording) => {
     console.log('Recording saved via real-time event:', recording);
-    // This event is the same as recording_created, so we handle it there
-    // to avoid duplicates. Just remove optimistic operations here.
+
+    // Add the recording to the list
+    setRecordings((prev) => {
+      // Check if recording already exists to avoid duplicates
+      const exists = prev.some(r => r.id === recording.id);
+      if (exists) return prev;
+      return [recording, ...prev];
+    });
+
+    // Remove any optimistic operation that matches this recording
     setOptimisticOperations(prev => {
       const next = new Map(prev);
-      // Find and remove any optimistic recording with matching name
+      // Find and remove optimistic recording with matching name AND project
       for (const [key, optimisticRecording] of prev) {
-        if (optimisticRecording.name === recording.name ||
+        if (optimisticRecording.name === recording.name &&
             optimisticRecording.project_id === recording.project_id) {
           next.delete(key);
           break;
@@ -221,7 +229,11 @@ export function RecordingsProvider({
       );
 
       console.log(`Recording saved${shouldAutoGenerate ? ' with auto-summary enabled' : ''}`);
-      // Real recording will be added via real-time event
+
+      // Add a fallback refresh in case the real-time event doesn't work
+      setTimeout(() => {
+        refreshRecordings();
+      }, 1000);
     } catch (error) {
       // Remove optimistic update on error
       setOptimisticOperations(prev => {

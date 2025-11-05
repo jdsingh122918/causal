@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -20,8 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { useNavigation } from "@/contexts/NavigationContext";
-import { Plus, Folder, Mic, Settings, Bug, MoreHorizontal, Trash2 } from "lucide-react";
+import { Plus, Folder, Settings, Bug, MoreHorizontal, Trash2 } from "lucide-react";
 import { NewProjectDialog } from "@/components/dialogs/NewProjectDialog";
 import { DeleteProjectDialog } from "@/components/dialogs/DeleteProjectDialog";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,8 @@ import { Project } from "@/lib/types";
 
 export function ProjectsSidebar() {
   const { projects, currentProject, selectProject } = useProjects();
-  const { currentView, setCurrentView } = useNavigation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
@@ -37,6 +38,11 @@ export function ProjectsSidebar() {
   const handleDeleteProject = (project: Project) => {
     setProjectToDelete(project);
     setDeleteProjectOpen(true);
+  };
+
+  const handleProjectSelect = (projectId: string) => {
+    selectProject(projectId);
+    navigate('/');
   };
 
   return (
@@ -69,7 +75,7 @@ export function ProjectsSidebar() {
                     <SidebarMenuItem key={project.id}>
                       <div className="flex items-center w-full group">
                         <SidebarMenuButton
-                          onClick={() => selectProject(project.id)}
+                          onClick={() => handleProjectSelect(project.id)}
                           isActive={currentProject?.id === project.id}
                           className={cn(
                             "flex-1 justify-start",
@@ -117,24 +123,11 @@ export function ProjectsSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => setCurrentView('recording')}
-                    isActive={currentView === 'recording'}
+                    onClick={() => navigate('/settings')}
+                    isActive={location.pathname === '/settings'}
                     className={cn(
                       "w-full justify-start",
-                      currentView === 'recording' && "bg-accent font-medium"
-                    )}
-                  >
-                    <Mic className="h-4 w-4" />
-                    <span>Recording</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => setCurrentView('settings')}
-                    isActive={currentView === 'settings'}
-                    className={cn(
-                      "w-full justify-start",
-                      currentView === 'settings' && "bg-accent font-medium"
+                      location.pathname === '/settings' && "bg-accent font-medium"
                     )}
                   >
                     <Settings className="h-4 w-4" />
@@ -143,11 +136,11 @@ export function ProjectsSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => setCurrentView('diagnostics')}
-                    isActive={currentView === 'diagnostics'}
+                    onClick={() => navigate('/diagnostics')}
+                    isActive={location.pathname === '/diagnostics'}
                     className={cn(
                       "w-full justify-start",
-                      currentView === 'diagnostics' && "bg-accent font-medium"
+                      location.pathname === '/diagnostics' && "bg-accent font-medium"
                     )}
                   >
                     <Bug className="h-4 w-4" />

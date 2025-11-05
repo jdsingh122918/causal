@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { invoke } from "@tauri-apps/api/core";
 import { Recording, TranscriptSummary } from "@/lib/types";
 import { useProjects } from "./ProjectsContext";
+import { useSettings } from "./SettingsContext";
 import { useRecordingEvents } from "@/hooks/use-realtime-events";
 import * as tauri from "@/lib/tauri";
 
@@ -38,6 +39,7 @@ export function RecordingsProvider({
   const [loading, setLoading] = useState(false);
   const [optimisticOperations, setOptimisticOperations] = useState<Map<string, Recording>>(new Map());
   const { currentProject } = useProjects();
+  const { claudeApiKey } = useSettings();
 
   // Real-time event handlers
   const handleRecordingCreated = useCallback((recording: Recording) => {
@@ -121,6 +123,12 @@ export function RecordingsProvider({
     }
   }, [currentRecording]);
 
+  const handleRecordingSummaryFailed = useCallback((payload: { recording_id: string; error: string }) => {
+    console.warn('Recording summary generation failed:', payload);
+    // Could show a toast notification here or update UI to indicate failure
+    // For now, just log the event - the manual generation button will still be available
+  }, []);
+
   // Set up real-time event listeners
   useRecordingEvents({
     onRecordingCreated: handleRecordingCreated,
@@ -128,6 +136,7 @@ export function RecordingsProvider({
     onRecordingDeleted: handleRecordingDeleted,
     onRecordingSaved: handleRecordingSaved,
     onRecordingSummaryGenerated: handleRecordingSummaryGenerated,
+    onRecordingSummaryFailed: handleRecordingSummaryFailed,
   });
 
   // Load recordings when current project changes
@@ -199,14 +208,19 @@ export function RecordingsProvider({
     setOptimisticOperations(prev => new Map(prev).set(optimisticId, optimisticRecording));
 
     try {
-      // The backend save_recording command saves from the current session
-      // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
-      await invoke<Recording>("save_recording", {
+      // Use the updated tauri wrapper with automatic summary generation
+      const shouldAutoGenerate = claudeApiKey && claudeApiKey.trim().length > 0;
+
+      await tauri.saveRecording(
         name,
-        summary: null,
-        keyPoints: [],
-        actionItems: [],
-      });
+        undefined, // summary
+        undefined, // keyPoints
+        undefined, // actionItems
+        shouldAutoGenerate ? claudeApiKey : undefined, // claudeApiKey
+        shouldAutoGenerate || false // autoGenerateSummary
+      );
+
+      console.log(`Recording saved${shouldAutoGenerate ? ' with auto-summary enabled' : ''}`);
       // Real recording will be added via real-time event
     } catch (error) {
       // Remove optimistic update on error

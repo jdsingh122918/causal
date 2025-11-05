@@ -74,6 +74,8 @@ export async function listRecordings(projectId: string): Promise<Recording[]> {
  * @param summary - Optional summary text for the recording
  * @param keyPoints - Optional array of key points extracted from the transcript
  * @param actionItems - Optional array of action items identified in the transcript
+ * @param claudeApiKey - Optional Claude API key for automatic summary generation
+ * @param autoGenerateSummary - Whether to automatically generate a summary after saving
  * @returns Promise that resolves to the saved Recording object
  * @throws Error if saving fails or no active transcription session exists
  */
@@ -82,12 +84,16 @@ export async function saveRecording(
   summary?: string,
   keyPoints?: string[],
   actionItems?: string[],
+  claudeApiKey?: string,
+  autoGenerateSummary?: boolean,
 ): Promise<Recording> {
   return await invoke<Recording>("save_recording", {
     name,
     summary: summary || null,
     key_points: keyPoints || [],
     action_items: actionItems || [],
+    claude_api_key: claudeApiKey || null,
+    auto_generate_summary: autoGenerateSummary || false,
   });
 }
 

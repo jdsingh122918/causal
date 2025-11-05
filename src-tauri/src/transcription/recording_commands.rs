@@ -15,6 +15,8 @@ pub async fn save_recording(
     summary: Option<String>,
     key_points: Vec<String>,
     action_items: Vec<String>,
+    claude_api_key: Option<String>,
+    auto_generate_summary: Option<bool>,
 ) -> Result<Recording, String> {
     // Get current project ID
     let project_id = state
@@ -62,6 +64,84 @@ pub async fn save_recording(
         tracing::error!("Failed to emit recording_saved event: {}", e);
     }
 
+    // Automatically generate summary if requested and API key is provided
+    let final_recording = saved.clone();
+    if auto_generate_summary.unwrap_or(false) {
+        if let Some(api_key) = claude_api_key {
+            if !api_key.trim().is_empty() {
+                tracing::info!("Auto-generating summary for recording: {}", saved.id);
+
+                // Spawn async task for summary generation to avoid blocking
+                let recording_id = saved.id.clone();
+                let app_clone = app.clone();
+                let db_inner = db.inner().clone();
+
+                tokio::spawn(async move {
+                    // Replicate the summary generation logic from database/commands.rs
+                    let result = async {
+                        // Get the recording
+                        let mut recording = db_inner.get_recording(&recording_id).await?;
+
+                        // Use enhanced transcript if available, otherwise fall back to raw
+                        let transcript_text = if !recording.enhanced_transcript.is_empty() {
+                            recording.enhanced_transcript.clone()
+                        } else {
+                            recording.raw_transcript.clone()
+                        };
+
+                        // Calculate approximate chunk count from metadata
+                        let chunk_count = recording.metadata.turn_count.max(1) as u32;
+
+                        // Generate summary using the summary service
+                        let summary_service = crate::transcription::summary::SummaryService::new(api_key.clone());
+                        let summary = summary_service
+                            .summarize(transcript_text, chunk_count)
+                            .await?;
+
+                        // Update recording with summary
+                        recording.summary = Some(summary.summary);
+                        recording.key_points = summary.key_points;
+                        recording.action_items = summary.action_items;
+
+                        // Save updated recording
+                        db_inner.update_recording_summary(
+                            &recording_id,
+                            recording.summary.clone(),
+                            recording.key_points.clone(),
+                            recording.action_items.clone(),
+                        ).await?;
+
+                        Ok::<Recording, String>(recording)
+                    }.await;
+
+                    match result {
+                        Ok(updated_recording) => {
+                            tracing::info!("✅ Auto-summary generated successfully for recording: {}", recording_id);
+                            // Emit event for updated recording with summary
+                            if let Err(e) = app_clone.emit("recording_summary_generated", &updated_recording) {
+                                tracing::error!("Failed to emit recording_summary_generated event: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("⚠️ Auto-summary generation failed for recording {}: {}", recording_id, e);
+                            // Emit failure event so frontend can show optional manual generation
+                            if let Err(emit_err) = app_clone.emit("recording_summary_failed", serde_json::json!({
+                                "recording_id": recording_id,
+                                "error": e
+                            })) {
+                                tracing::error!("Failed to emit recording_summary_failed event: {}", emit_err);
+                            }
+                        }
+                    }
+                });
+            } else {
+                tracing::warn!("Auto-summary requested but Claude API key is empty");
+            }
+        } else {
+            tracing::warn!("Auto-summary requested but no Claude API key provided");
+        }
+    }
+
     // Clear the session after successful save
     state.session_manager.clear_session().await;
 
@@ -70,7 +150,7 @@ pub async fn save_recording(
         tracing::error!("Failed to emit session_cleared event: {}", e);
     }
 
-    Ok(saved)
+    Ok(final_recording)
 }
 
 /// Get the current session data

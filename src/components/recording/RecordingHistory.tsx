@@ -5,14 +5,12 @@ import { useRecordings } from "@/contexts/RecordingsContext";
 import { RecordingCard } from "./RecordingCard";
 import { Recording } from "@/lib/types";
 import { Loader2, FolderOpen } from "lucide-react";
-import { RecordingDetailDialog } from "@/components/dialogs/RecordingDetailDialog";
 import { RenameRecordingDialog } from "@/components/dialogs/RenameRecordingDialog";
 import { toast } from "sonner";
 import { ask } from "@tauri-apps/plugin-dialog";
 
 export function RecordingHistory() {
   const { recordings, loading, deleteRecording } = useRecordings();
-  const [viewRecording, setViewRecording] = useState<Recording | null>(null);
   const [renameRecording, setRenameRecording] = useState<Recording | null>(
     null
   );
@@ -72,7 +70,6 @@ export function RecordingHistory() {
                 <RecordingCard
                   key={recording.id}
                   recording={recording}
-                  onView={setViewRecording}
                   onRename={setRenameRecording}
                   onDelete={handleDelete}
                 />
@@ -81,12 +78,6 @@ export function RecordingHistory() {
           )}
         </ScrollArea>
       </Card>
-
-      <RecordingDetailDialog
-        recording={viewRecording}
-        open={!!viewRecording}
-        onOpenChange={(open) => !open && setViewRecording(null)}
-      />
 
       <RenameRecordingDialog
         recording={renameRecording}

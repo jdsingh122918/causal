@@ -144,6 +144,7 @@ export function useRecordingEvents(callbacks: {
   onRecordingDeleted?: EventCallback;
   onRecordingSaved?: EventCallback;
   onRecordingSummaryGenerated?: EventCallback;
+  onRecordingSummaryFailed?: EventCallback;
 }) {
   const events: Record<string, EventCallback> = {};
 

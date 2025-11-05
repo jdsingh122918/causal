@@ -30,11 +30,11 @@ export async function createProject(
 }
 
 export async function selectProject(projectId: string): Promise<void> {
-  return await invoke("select_project", { projectId });
+  return await invoke("set_current_project", { project_id: projectId });
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  return await invoke("delete_project", { projectId });
+  return await invoke("delete_project", { id: projectId });
 }
 
 export async function getCurrentProject(): Promise<Project> {
@@ -43,18 +43,33 @@ export async function getCurrentProject(): Promise<Project> {
 
 // Recording Commands
 export async function listRecordings(projectId: string): Promise<Recording[]> {
-  return await invoke<Recording[]>("list_recordings", { projectId });
+  console.log("🐛 tauri.listRecordings called with projectId:", projectId);
+  // WORKAROUND: Tauri is transforming snake_case back to camelCase, so send camelCase
+  const params = { projectId: projectId };
+  console.log("🐛 About to invoke list_recordings with params:", params);
+  console.log("🐛 JSON.stringify(params):", JSON.stringify(params));
+
+  try {
+    const result = await invoke<Recording[]>("list_recordings", params);
+    console.log("🐛 invoke successful, result:", result);
+    return result;
+  } catch (error) {
+    console.error("🐛 invoke failed with error:", error);
+    throw error;
+  }
 }
 
 export async function saveRecording(
-  projectId: string,
   name: string,
-  transcript: string,
+  summary?: string,
+  keyPoints?: string[],
+  actionItems?: string[],
 ): Promise<Recording> {
   return await invoke<Recording>("save_recording", {
-    projectId,
     name,
-    transcript,
+    summary: summary || null,
+    key_points: keyPoints || [],
+    action_items: actionItems || [],
   });
 }
 
@@ -62,16 +77,52 @@ export async function renameRecording(
   recordingId: string,
   newName: string,
 ): Promise<void> {
-  return await invoke("rename_recording", { recordingId, newName });
+  return await invoke("update_recording_name", {
+    id: recordingId,
+    name: newName,
+  });
 }
 
 export async function deleteRecording(recordingId: string): Promise<void> {
-  return await invoke("delete_recording", { recordingId });
+  return await invoke("delete_recording", { id: recordingId });
 }
 
 // Transcription Commands
-export async function startTranscription(): Promise<void> {
-  return await invoke("start_transcription");
+export async function startTranscription(
+  deviceId: string,
+  apiKey: string,
+  claudeApiKey?: string,
+  projectId?: string,
+  refinementConfig?: any,
+): Promise<void> {
+  console.log("🐛 tauri.startTranscription called with:", {
+    deviceId,
+    apiKey,
+    claudeApiKey,
+    projectId,
+    refinementConfig,
+  });
+
+  // WORKAROUND: Tauri is transforming snake_case back to camelCase, so send camelCase
+  const params = {
+    deviceId: deviceId,
+    apiKey: apiKey,
+    claudeApiKey: claudeApiKey,
+    projectId: projectId,
+    refinementConfig: refinementConfig,
+  };
+
+  console.log("🐛 About to invoke start_transcription with params:", params);
+  console.log("🐛 JSON.stringify(params):", JSON.stringify(params));
+
+  try {
+    const result = await invoke("start_transcription", params);
+    console.log("🐛 invoke successful, result:", result);
+    return result;
+  } catch (error) {
+    console.error("🐛 invoke failed with error:", error);
+    throw error;
+  }
 }
 
 export async function stopTranscription(): Promise<void> {

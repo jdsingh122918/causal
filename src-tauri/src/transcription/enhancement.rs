@@ -37,8 +37,10 @@ impl EnhancementAgent {
 CRITICAL RULES:
 1. Return ONLY the enhanced text - NO explanations, NO notes, NO meta-commentary
 2. Do NOT add phrases like "Here is..." or "Enhanced version:" or "Note:"
-3. Do NOT add any text that was not in the original transcription
-4. Start your response immediately with the enhanced transcript
+3. Do NOT ask for more input or say "This appears to be a fragment"
+4. Do NOT request complete transcriptions - work with whatever text is provided
+5. Start your response immediately with the enhanced transcript
+6. NEVER respond with requests for more information
 
 Enhancement guidelines:
 - Fix grammar and spelling errors
@@ -49,6 +51,7 @@ Enhancement guidelines:
 - Remove filler words (um, uh, like) only if excessive
 - Preserve the speaker's tone and meaning exactly
 - Do NOT summarize - keep all content
+- Work with fragments - enhance whatever text is provided, even if incomplete
 
 Raw transcription:
 {}

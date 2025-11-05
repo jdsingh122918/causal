@@ -7,11 +7,15 @@ import {
   TurnBufferItem,
   RecordingStatus,
 } from "@/lib/types";
+import * as tauri from "@/lib/tauri";
+import { useSettings } from "./SettingsContext";
+import { useProjects } from "./ProjectsContext";
 
 interface TranscriptionState {
   isRecording: boolean;
   status: RecordingStatus;
   transcriptText: string;
+  cleanedTranscript: string;
   turns: Map<number, string>;
   enhancedBuffers: Map<number, string>;
   turnBuffer: TurnBufferItem[];
@@ -39,11 +43,15 @@ export function TranscriptionProvider({
     isRecording: false,
     status: "idle",
     transcriptText: "",
+    cleanedTranscript: "",
     turns: new Map(),
     enhancedBuffers: new Map(),
     turnBuffer: [],
     latestTurnOrder: 0,
   });
+
+  const { selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig } = useSettings();
+  const { currentProject } = useProjects();
 
   // Listen for transcript results
   useEffect(() => {
@@ -52,7 +60,7 @@ export function TranscriptionProvider({
 
     const setupListeners = async () => {
       unlistenTranscript = await listen<TranscriptResult>(
-        "transcript-result",
+        "transcript",
         (event) => {
           const result = event.payload;
 
@@ -67,7 +75,7 @@ export function TranscriptionProvider({
               result.turn_order
             );
 
-            // Build full transcript
+            // Build full transcript - show raw text immediately for real-time streaming
             const fullTranscript = Array.from(newTurns.entries())
               .sort(([a], [b]) => a - b)
               .map(([, text]) => text)
@@ -84,7 +92,7 @@ export function TranscriptionProvider({
       );
 
       unlistenEnhanced = await listen<EnhancedTranscript>(
-        "enhanced-transcript",
+        "enhanced_transcript",
         (event) => {
           const enhanced = event.payload;
 
@@ -92,9 +100,16 @@ export function TranscriptionProvider({
             const newBuffers = new Map(prev.enhancedBuffers);
             newBuffers.set(enhanced.buffer_id, enhanced.enhanced_text);
 
+            // Build cleaned transcript from enhanced buffers
+            const cleanedTranscript = Array.from(newBuffers.entries())
+              .sort(([a], [b]) => a - b)
+              .map(([, text]) => text)
+              .join(" ");
+
             return {
               ...prev,
               enhancedBuffers: newBuffers,
+              cleanedTranscript,
             };
           });
         }
@@ -111,21 +126,45 @@ export function TranscriptionProvider({
 
   const startRecording = async () => {
     try {
-      await invoke("start_transcription");
+      if (!selectedDeviceId) {
+        throw new Error("No audio device selected. Please configure in Settings.");
+      }
+
+      if (!assemblyApiKey) {
+        throw new Error("AssemblyAI API key not configured. Please set it in Settings.");
+      }
+
+      console.log("🐛 TranscriptionContext.startRecording: About to call tauri.startTranscription with:", {
+        selectedDeviceId,
+        assemblyApiKey,
+        claudeApiKey: claudeApiKey || undefined,
+        projectId: currentProject?.id || undefined,
+        refinementConfig
+      });
+
+      await tauri.startTranscription(
+        selectedDeviceId,
+        assemblyApiKey,
+        claudeApiKey || undefined,
+        currentProject?.id || undefined,
+        refinementConfig
+      );
+
+      console.log("🐛 TranscriptionContext.startRecording: Successfully started transcription");
       setState((prev) => ({
         ...prev,
         isRecording: true,
         status: "recording",
       }));
     } catch (error) {
-      console.error("Failed to start recording:", error);
+      console.error("🐛 TranscriptionContext.startRecording: Failed to start recording:", error);
       throw error;
     }
   };
 
   const stopRecording = async () => {
     try {
-      await invoke("stop_transcription");
+      await tauri.stopTranscription();
       setState((prev) => ({
         ...prev,
         isRecording: false,
@@ -142,6 +181,7 @@ export function TranscriptionProvider({
       isRecording: false,
       status: "idle",
       transcriptText: "",
+      cleanedTranscript: "",
       turns: new Map(),
       enhancedBuffers: new Map(),
       turnBuffer: [],

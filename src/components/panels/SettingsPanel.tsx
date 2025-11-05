@@ -1,12 +1,4 @@
 import { useState, useEffect } from "react";
-import {
-  Dialog,
-  ResizableDialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,18 +11,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSettings } from "@/contexts/SettingsContext";
 import { RefinementMode } from "@/lib/types";
 import { toast } from "sonner";
-import { Mic, Key, Sparkles, Save, X, RefreshCw } from "lucide-react";
+import { Mic, Key, Sparkles, Save, RefreshCw } from "lucide-react";
 
-interface SettingsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsPanel() {
   const {
     audioDevices,
     selectedDeviceId,
@@ -52,27 +39,24 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [loadingDevices, setLoadingDevices] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      const loadDevices = async () => {
-        setLoadingDevices(true);
-        try {
-          await loadAudioDevices();
-        } catch (error) {
-          console.error("Failed to load audio devices:", error);
-        } finally {
-          setLoadingDevices(false);
-        }
-      };
+    const loadDevices = async () => {
+      setLoadingDevices(true);
+      try {
+        await loadAudioDevices();
+      } catch (error) {
+        console.error("Failed to load audio devices:", error);
+      } finally {
+        setLoadingDevices(false);
+      }
+    };
 
-      loadDevices();
-      setLocalDeviceId(selectedDeviceId || "");
-      setLocalAssemblyKey(assemblyApiKey);
-      setLocalClaudeKey(claudeApiKey);
-      setLocalMode(refinementConfig.mode);
-      setLocalChunkDuration(refinementConfig.chunk_duration_secs);
-    }
-  }, [open]);
-
+    loadDevices();
+    setLocalDeviceId(selectedDeviceId || "");
+    setLocalAssemblyKey(assemblyApiKey);
+    setLocalClaudeKey(claudeApiKey);
+    setLocalMode(refinementConfig.mode);
+    setLocalChunkDuration(refinementConfig.chunk_duration_secs);
+  }, []);
 
   const handleSave = () => {
     try {
@@ -87,7 +71,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         },
       });
       toast.success("Settings saved successfully");
-      onOpenChange(false);
     } catch (error) {
       toast.error("Failed to save settings");
       console.error(error);
@@ -97,83 +80,87 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <ResizableDialogContent
-        initialWidth="700px"
-        initialHeight="600px"
-        minWidth="500px"
-        minHeight="400px"
-      >
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Settings</DialogTitle>
-          <DialogDescription>
-            Configure audio device, API keys, and AI refinement options.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="h-full space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground">
+          Configure audio device, API keys, and AI refinement options.
+        </p>
+      </div>
 
-        <ScrollArea className="flex-1 h-0 pr-6">
-          <div className="space-y-6 pb-6">
+      <ScrollArea className="h-[calc(100vh-200px)]">
+        <div className="space-y-6 pr-6">
           {/* Audio Device Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Mic className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Audio Input</h3>
-            </div>
-            <div className="space-y-2 pl-7">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="audio-device" className="text-sm font-medium">
-                  Microphone Device
-                </Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    setLoadingDevices(true);
-                    try {
-                      await loadAudioDevices();
-                    } finally {
-                      setLoadingDevices(false);
-                    }
-                  }}
-                  disabled={loadingDevices}
-                  className="h-6 px-2"
-                >
-                  <RefreshCw className={`h-3 w-3 ${loadingDevices ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-              <Select value={localDeviceId} onValueChange={setLocalDeviceId}>
-                <SelectTrigger id="audio-device" className="h-11">
-                  <SelectValue placeholder={loadingDevices ? "Loading audio devices..." : "Select audio device"} />
-                </SelectTrigger>
-                <SelectContent position="popper" align="start" className="z-[110]">
-                  {audioDevices.length === 0 ? (
-                    <SelectItem value="" disabled>
-                      {loadingDevices ? "Loading devices..." : "No audio devices found"}
-                    </SelectItem>
-                  ) : (
-                    audioDevices.map((device) => (
-                      <SelectItem key={device.id} value={device.id}>
-                        {device.name} {device.is_default ? "(Default)" : ""}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mic className="h-5 w-5 text-primary" />
+                Audio Input
+              </CardTitle>
+              <CardDescription>
+                Configure your microphone for recording
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="audio-device" className="text-sm font-medium">
+                    Microphone Device
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      setLoadingDevices(true);
+                      try {
+                        await loadAudioDevices();
+                      } finally {
+                        setLoadingDevices(false);
+                      }
+                    }}
+                    disabled={loadingDevices}
+                    className="h-6 px-2"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${loadingDevices ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                <Select value={localDeviceId} onValueChange={setLocalDeviceId}>
+                  <SelectTrigger id="audio-device" className="h-11">
+                    <SelectValue placeholder={loadingDevices ? "Loading audio devices..." : "Select audio device"} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" align="start">
+                    {audioDevices.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        {loadingDevices ? "Loading devices..." : "No audio devices found"}
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Choose the microphone to use for recording
-              </p>
-            </div>
-          </div>
-
-          <Separator />
+                    ) : (
+                      audioDevices.map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name} {device.is_default ? "(Default)" : ""}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose the microphone to use for recording
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* API Keys Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Key className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">API Keys</h3>
-            </div>
-            <div className="space-y-4 pl-7">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-primary" />
+                API Keys
+              </CardTitle>
+              <CardDescription>
+                Configure API keys for transcription and AI features
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="assembly-key" className="text-sm font-medium">
                   AssemblyAI API Key
@@ -207,18 +194,21 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   Required for AI-powered summaries and refinement
                 </p>
               </div>
-            </div>
-          </div>
-
-          <Separator />
+            </CardContent>
+          </Card>
 
           {/* AI Refinement Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">AI Refinement</h3>
-            </div>
-            <div className="space-y-4 pl-7">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                AI Refinement
+              </CardTitle>
+              <CardDescription>
+                Configure how AI processes your transcriptions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Processing Mode</Label>
                 <RadioGroup value={localMode} onValueChange={(v) => setLocalMode(v as RefinementMode)}>
@@ -277,33 +267,23 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </p>
                 </div>
               )}
-            </div>
-          </div>
-          </div>
-        </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
 
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-            className="gap-2"
-            size="lg"
-          >
-            <X className="h-4 w-4" />
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={loading}
-            className="gap-2"
-            size="lg"
-          >
-            <Save className="h-4 w-4" />
-            {loading ? "Saving..." : "Save Settings"}
-          </Button>
-        </DialogFooter>
-      </ResizableDialogContent>
-    </Dialog>
+      {/* Fixed Save Button */}
+      <div className="flex justify-end border-t pt-4">
+        <Button
+          onClick={handleSave}
+          disabled={loading}
+          className="gap-2"
+          size="lg"
+        >
+          <Save className="h-4 w-4" />
+          {loading ? "Saving..." : "Save Settings"}
+        </Button>
+      </div>
+    </div>
   );
 }

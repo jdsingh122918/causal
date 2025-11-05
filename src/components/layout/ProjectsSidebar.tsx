@@ -10,16 +10,34 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { Plus, Folder } from "lucide-react";
+import { useNavigation } from "@/contexts/NavigationContext";
+import { Plus, Folder, Mic, Settings, Bug, MoreHorizontal, Trash2 } from "lucide-react";
 import { NewProjectDialog } from "@/components/dialogs/NewProjectDialog";
+import { DeleteProjectDialog } from "@/components/dialogs/DeleteProjectDialog";
 import { cn } from "@/lib/utils";
+import { Project } from "@/lib/types";
 
 export function ProjectsSidebar() {
   const { projects, currentProject, selectProject } = useProjects();
+  const { currentView, setCurrentView } = useNavigation();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+
+  const handleDeleteProject = (project: Project) => {
+    setProjectToDelete(project);
+    setDeleteProjectOpen(true);
+  };
 
   return (
     <>
@@ -49,21 +67,93 @@ export function ProjectsSidebar() {
                 ) : (
                   projects.map((project) => (
                     <SidebarMenuItem key={project.id}>
-                      <SidebarMenuButton
-                        onClick={() => selectProject(project.id)}
-                        isActive={currentProject?.id === project.id}
-                        className={cn(
-                          "w-full justify-start",
-                          currentProject?.id === project.id &&
-                            "bg-accent font-medium"
-                        )}
-                      >
-                        <Folder className="h-4 w-4" />
-                        <span className="truncate">{project.name}</span>
-                      </SidebarMenuButton>
+                      <div className="flex items-center w-full group">
+                        <SidebarMenuButton
+                          onClick={() => selectProject(project.id)}
+                          isActive={currentProject?.id === project.id}
+                          className={cn(
+                            "flex-1 justify-start",
+                            currentProject?.id === project.id &&
+                              "bg-accent font-medium"
+                          )}
+                        >
+                          <Folder className="h-4 w-4" />
+                          <span className="truncate">{project.name}</span>
+                        </SidebarMenuButton>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 shrink-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteProject(project)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete Project
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </SidebarMenuItem>
                   ))
                 )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarSeparator />
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Tools</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setCurrentView('recording')}
+                    isActive={currentView === 'recording'}
+                    className={cn(
+                      "w-full justify-start",
+                      currentView === 'recording' && "bg-accent font-medium"
+                    )}
+                  >
+                    <Mic className="h-4 w-4" />
+                    <span>Recording</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setCurrentView('settings')}
+                    isActive={currentView === 'settings'}
+                    className={cn(
+                      "w-full justify-start",
+                      currentView === 'settings' && "bg-accent font-medium"
+                    )}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>Settings</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setCurrentView('diagnostics')}
+                    isActive={currentView === 'diagnostics'}
+                    className={cn(
+                      "w-full justify-start",
+                      currentView === 'diagnostics' && "bg-accent font-medium"
+                    )}
+                  >
+                    <Bug className="h-4 w-4" />
+                    <span>Diagnostics & Logs</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -77,6 +167,11 @@ export function ProjectsSidebar() {
       </Sidebar>
 
       <NewProjectDialog open={newProjectOpen} onOpenChange={setNewProjectOpen} />
+      <DeleteProjectDialog
+        project={projectToDelete}
+        open={deleteProjectOpen}
+        onOpenChange={setDeleteProjectOpen}
+      />
     </>
   );
 }

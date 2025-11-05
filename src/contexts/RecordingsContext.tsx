@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Recording, TranscriptSummary } from "@/lib/types";
 import { useProjects } from "./ProjectsContext";
+import * as tauri from "@/lib/tauri";
 
 interface RecordingsContextType {
   recordings: Recording[];
@@ -49,12 +50,12 @@ export function RecordingsProvider({
 
     try {
       setLoading(true);
-      const recordingsList = await invoke<Recording[]>("list_recordings", {
-        project_id: currentProject.id,
-      });
+      console.log("🐛 RecordingsContext.loadRecordings: About to call tauri.listRecordings with currentProject.id:", currentProject.id);
+      const recordingsList = await tauri.listRecordings(currentProject.id);
+      console.log("🐛 RecordingsContext.loadRecordings: Successfully got recordings:", recordingsList);
       setRecordings(recordingsList);
     } catch (error) {
-      console.error("Failed to load recordings:", error);
+      console.error("🐛 RecordingsContext.loadRecordings: Failed to load recordings:", error);
     } finally {
       setLoading(false);
     }
@@ -67,6 +68,7 @@ export function RecordingsProvider({
 
     try {
       // The backend save_recording command saves from the current session
+      // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
       const recording = await invoke<Recording>("save_recording", {
         name,
         summary: null,
@@ -82,7 +84,7 @@ export function RecordingsProvider({
 
   const renameRecording = async (recordingId: string, newName: string) => {
     try {
-      await invoke("update_recording_name", { id: recordingId, name: newName });
+      await tauri.renameRecording(recordingId, newName);
       setRecordings((prev) =>
         prev.map((r) => (r.id === recordingId ? { ...r, name: newName } : r))
       );
@@ -99,7 +101,7 @@ export function RecordingsProvider({
 
   const deleteRecording = async (recordingId: string) => {
     try {
-      await invoke("delete_recording", { id: recordingId });
+      await tauri.deleteRecording(recordingId);
       setRecordings((prev) => prev.filter((r) => r.id !== recordingId));
       if (currentRecording?.id === recordingId) {
         setCurrentRecording(null);
@@ -121,9 +123,10 @@ export function RecordingsProvider({
         throw new Error("Claude API key not configured. Please set it in Settings.");
       }
 
+      // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
       const recording = await invoke<Recording>("generate_recording_summary", {
-        recordingId,
-        claudeApiKey,
+        recordingId: recordingId,
+        claudeApiKey: claudeApiKey,
       });
 
       // Update recordings list
@@ -169,9 +172,10 @@ export function RecordingsProvider({
       });
 
       if (outputPath) {
+        // WORKAROUND: Tauri transforms snake_case to camelCase, so send camelCase directly
         await invoke("export_recording", {
-          recordingId,
-          outputPath,
+          recordingId: recordingId,
+          outputPath: outputPath,
         });
       }
     } catch (error) {

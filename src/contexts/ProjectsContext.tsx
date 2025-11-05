@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Project, CreateProjectRequest } from "@/lib/types";
+import * as tauri from "@/lib/tauri";
 
 interface ProjectsContextType {
   projects: Project[];
@@ -27,15 +28,14 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const projectsList = await invoke<Project[]>("list_projects");
+      const projectsList = await tauri.listProjects();
       setProjects(projectsList);
 
-      // Try to load the current project ID
+      // Try to load the current project
       try {
-        const currentProjectId = await invoke<string | null>("get_current_project");
-        if (currentProjectId && projectsList.length > 0) {
-          const current = projectsList.find((p) => p.id === currentProjectId);
-          setCurrentProject(current || null);
+        const currentProject = await tauri.getCurrentProject();
+        if (currentProject) {
+          setCurrentProject(currentProject);
         } else {
           setCurrentProject(null);
         }
@@ -52,7 +52,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const createProject = async (request: CreateProjectRequest) => {
     try {
-      const newProject = await invoke<Project>("create_project", { request });
+      const newProject = await tauri.createProject(request);
       setProjects((prev) => [...prev, newProject]);
       setCurrentProject(newProject);
     } catch (error) {
@@ -63,7 +63,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const selectProject = async (projectId: string) => {
     try {
-      await invoke("set_current_project", { projectId });
+      await tauri.selectProject(projectId);
       const project = projects.find((p) => p.id === projectId);
       if (project) {
         setCurrentProject(project);
@@ -76,7 +76,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const deleteProject = async (projectId: string) => {
     try {
-      await invoke("delete_project", { projectId });
+      await tauri.deleteProject(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
       if (currentProject?.id === projectId) {
         setCurrentProject(null);

@@ -12,6 +12,7 @@ import { SettingsPanel } from "@/components/panels/SettingsPanel";
 import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
+import { HelpPage } from "@/pages/HelpPage";
 import { IntelligenceDashboard } from "@/components/intelligence";
 import { IntelligenceGrid } from "@/components/intelligence/IntelligenceGrid";
 import { ProjectIntelligenceSettings } from "@/components/settings/ProjectIntelligenceSettings";
@@ -110,6 +111,7 @@ function App() {
           <Route path="/intelligence" element={<IntelligenceDashboard />} />
           <Route path="/settings" element={<SettingsPanel />} />
           <Route path="/diagnostics" element={<DiagnosticsPanel />} />
+          <Route path="/help" element={<HelpPage />} />
         </Routes>
       </ErrorBoundary>
     </AppLayout>

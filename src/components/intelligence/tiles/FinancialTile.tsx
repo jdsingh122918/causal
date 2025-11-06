@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { IntelligenceTile } from "../IntelligenceTile";
+import { HistoricalContext } from "../HistoricalContext";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { useHistoricalContext } from "@/hooks/use-historical-context";
 import type { LayoutMode } from "@/hooks/intelligence/use-tile-layout";
 import type { IntelligenceResult } from "@/contexts/IntelligenceContext";
 
@@ -16,6 +18,19 @@ export function FinancialTile({ isRecording, showHistorical, layoutMode }: Finan
   const intelligence = useIntelligence();
   const [latestResult, setLatestResult] = useState<IntelligenceResult | null>(null);
   const [isNew, setIsNew] = useState(false);
+
+  // Historical context for similar financial analyses
+  const {
+    similarAnalyses,
+    isLoading: isLoadingHistory,
+    error: historyError
+  } = useHistoricalContext({
+    text: latestResult?.raw_text || "",
+    analysisType: "Financial",
+    enabled: showHistorical && !!latestResult?.raw_text,
+    topK: 3,
+    minSimilarity: 0.6
+  });
 
   useEffect(() => {
     const results = Array.from(intelligence.state.latestResults.values());
@@ -114,6 +129,17 @@ export function FinancialTile({ isRecording, showHistorical, layoutMode }: Finan
     );
   };
 
+  // Create historical content component if enabled and data available
+  const historicalContent = showHistorical ? (
+    <HistoricalContext
+      similarAnalyses={historyError ? [] : similarAnalyses}
+      isLoading={isLoadingHistory}
+      onAnalysisClick={(analysis) => {
+        console.log('[Financial Tile] Historical analysis clicked:', analysis);
+      }}
+    />
+  ) : undefined;
+
   return (
     <IntelligenceTile
       analysisType="Financial"
@@ -122,6 +148,7 @@ export function FinancialTile({ isRecording, showHistorical, layoutMode }: Finan
       isRecording={isRecording}
       layoutMode={layoutMode}
       showHistorical={showHistorical}
+      historicalContent={historicalContent}
       isNew={isNew && latestResult ? isNewContent(latestResult.timestamp) : false}
       timestamp={latestResult?.timestamp}
     >

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileText } from "lucide-react";
 import { IntelligenceTile } from "../IntelligenceTile";
+import { HistoricalContext } from "../HistoricalContext";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { useHistoricalContext } from "@/hooks/use-historical-context";
 import type { LayoutMode } from "@/hooks/intelligence/use-tile-layout";
 import type { IntelligenceResult } from "@/contexts/IntelligenceContext";
 
@@ -15,6 +17,19 @@ export function SummaryTile({ isRecording, showHistorical, layoutMode }: Summary
   const intelligence = useIntelligence();
   const [latestResult, setLatestResult] = useState<IntelligenceResult | null>(null);
   const [isNew, setIsNew] = useState(false);
+
+  // Historical context for similar summary analyses
+  const {
+    similarAnalyses,
+    isLoading: isLoadingHistory,
+    error: historyError
+  } = useHistoricalContext({
+    text: latestResult?.raw_text || "",
+    analysisType: "Summary",
+    enabled: showHistorical && !!latestResult?.raw_text,
+    topK: 3,
+    minSimilarity: 0.6
+  });
 
   useEffect(() => {
     const results = Array.from(intelligence.state.latestResults.values());
@@ -72,6 +87,17 @@ export function SummaryTile({ isRecording, showHistorical, layoutMode }: Summary
     );
   };
 
+  // Create historical content component if enabled and data available
+  const historicalContent = showHistorical ? (
+    <HistoricalContext
+      similarAnalyses={historyError ? [] : similarAnalyses}
+      isLoading={isLoadingHistory}
+      onAnalysisClick={(analysis) => {
+        console.log('[Summary Tile] Historical analysis clicked:', analysis);
+      }}
+    />
+  ) : undefined;
+
   return (
     <IntelligenceTile
       analysisType="Summary"
@@ -80,6 +106,7 @@ export function SummaryTile({ isRecording, showHistorical, layoutMode }: Summary
       isRecording={isRecording}
       layoutMode={layoutMode}
       showHistorical={showHistorical}
+      historicalContent={historicalContent}
       isNew={isNew && latestResult ? isNewContent(latestResult.timestamp) : false}
       timestamp={latestResult?.timestamp}
     >

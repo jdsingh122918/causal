@@ -324,8 +324,8 @@ pub async fn initialize_embeddings_service(
     let resource_dir = app_handle.path().resource_dir()
         .map_err(|e| format!("Failed to get resource directory: {}", e))?;
 
-    let model_path = resource_dir.join("models").join("all-MiniLM-L6-v2.onnx");
-    let tokenizer_path = resource_dir.join("models").join("tokenizer.json");
+    let model_path = resource_dir.join("models").join("all-MiniLM-L6-v2").join("model.onnx");
+    let tokenizer_path = resource_dir.join("models").join("all-MiniLM-L6-v2").join("tokenizer.json");
 
     // Check if model files exist
     if !model_path.exists() {

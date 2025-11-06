@@ -343,16 +343,29 @@ pub async fn analyze_and_store_text_buffer(
 
     for analysis_type in &enabled_analyses {
         // Get historical context if embeddings are available
-        let context = if let Ok(service_guard) = service_arc.lock() {
-            if let Some(service) = service_guard.as_ref() {
-                let conn_guard = database.get_connection().await;
-                service.get_historical_context(
-                    &conn_guard,
-                    &text,
-                    &project_id,
-                    analysis_type.as_str(),
-                    3,
-                ).unwrap_or_default()
+        let has_embeddings = {
+            if let Ok(service_guard) = service_arc.lock() {
+                service_guard.is_some()
+            } else {
+                false
+            }
+        };
+
+        let _context = if has_embeddings {
+            let conn_guard = database.get_connection().await;
+
+            if let Ok(service_guard) = service_arc.lock() {
+                if let Some(service) = service_guard.as_ref() {
+                    service.get_historical_context(
+                        &conn_guard,
+                        &text,
+                        &project_id,
+                        analysis_type.as_str(),
+                        3,
+                    ).unwrap_or_default()
+                } else {
+                    String::new()
+                }
             } else {
                 String::new()
             }
@@ -387,9 +400,19 @@ pub async fn analyze_and_store_text_buffer(
         match result {
             Ok(analysis_result) => {
                 // Store analysis with embedding
-                if let Ok(service_guard) = service_arc.lock() {
-                    if let Some(service) = service_guard.as_ref() {
-                        let conn_guard = database.get_connection().await;
+                let has_embedding_service = {
+                    if let Ok(service_guard) = service_arc.lock() {
+                        service_guard.is_some()
+                    } else {
+                        false
+                    }
+                };
+
+                if has_embedding_service {
+                    let conn_guard = database.get_connection().await;
+
+                    if let Ok(service_guard) = service_arc.lock() {
+                        if let Some(service) = service_guard.as_ref() {
 
                         // Serialize analysis result
                         let analysis_content = serde_json::to_string(&analysis_result)
@@ -415,6 +438,7 @@ pub async fn analyze_and_store_text_buffer(
                             warn!("Failed to store analysis with embedding: {}", e);
                         } else {
                             debug!("Stored analysis {} with embedding", analysis_type.as_str());
+                        }
                         }
                     }
                 }

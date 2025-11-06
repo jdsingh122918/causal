@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { Plus, Folder, Settings, Bug, MoreHorizontal, Trash2, Brain } from "lucide-react";
+import { Plus, Folder, Settings, Bug, MoreHorizontal, Trash2, Brain, HelpCircle } from "lucide-react";
 import { NewProjectDialog } from "@/components/dialogs/NewProjectDialog";
 import { DeleteProjectDialog } from "@/components/dialogs/DeleteProjectDialog";
 import { cn } from "@/lib/utils";
@@ -158,6 +158,19 @@ export function ProjectsSidebar() {
                   >
                     <Bug className="h-4 w-4" />
                     <span>Diagnostics & Logs</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/help')}
+                    isActive={location.pathname === '/help'}
+                    className={cn(
+                      "w-full justify-start",
+                      location.pathname === '/help' && "bg-accent font-medium"
+                    )}
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    <span>Help & Documentation</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

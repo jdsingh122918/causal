@@ -76,7 +76,7 @@ argon2 = "0.5"
 rand = "0.8"
 
 # Vector embeddings for semantic search
-ort = "2.0.0-rc.10"       # ONNX Runtime for local embeddings
+ort = "1.16"               # ONNX Runtime for local embeddings (stable version)
 ndarray = "0.15"          # Multi-dimensional arrays for vector operations
 tokenizers = "0.19"       # Tokenization for embedding model
 rayon = "1.7"             # Parallel processing for bulk operations

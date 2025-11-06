@@ -3,8 +3,8 @@
 /// Uses all-MiniLM-L6-v2 sentence-transformers model to generate
 /// 384-dimensional embeddings for semantic search and similarity matching.
 
-use ndarray::Array2;
-use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, session::Session, SessionBuilder, Value};
+use ndarray::CowArray;
+use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, Session, SessionBuilder, Value, execution_providers::CPUExecutionProviderOptions, tensor::OrtOwnedTensor};
 use std::path::Path;
 use std::sync::Arc;
 use tokenizers::Tokenizer;
@@ -36,7 +36,7 @@ impl EmbeddingModel {
         let environment = Arc::new(
             Environment::builder()
                 .with_name("embeddings")
-                .with_execution_providers([ExecutionProvider::CPU])
+                .with_execution_providers([ExecutionProvider::CPU(CPUExecutionProviderOptions::default())])
                 .build()
                 .map_err(|e| format!("Failed to create ONNX environment: {}", e))?
         );
@@ -48,7 +48,7 @@ impl EmbeddingModel {
             .map_err(|e| format!("Failed to set optimization level: {}", e))?
             .with_intra_threads(4)
             .map_err(|e| format!("Failed to set thread count: {}", e))?
-            .commit_from_file(model_path.as_ref())
+            .with_model_from_file(model_path.as_ref())
             .map_err(|e| format!("Failed to load model: {}", e))?;
 
         // Load tokenizer
@@ -93,27 +93,27 @@ impl EmbeddingModel {
             attention_mask.extend(vec![0; padding_len]);
         }
 
-        // Prepare input tensors
-        let input_ids_array = Array2::from_shape_vec(
-            (1, MAX_SEQUENCE_LENGTH),
-            input_ids.iter().map(|&x| x as i64).collect(),
-        ).map_err(|e| format!("Failed to create input_ids array: {}", e))?;
+        // Prepare input tensors using CowArray
+        let input_ids_vec: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
+        let attention_mask_vec: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
 
-        let attention_mask_array = Array2::from_shape_vec(
-            (1, MAX_SEQUENCE_LENGTH),
-            attention_mask.iter().map(|&x| x as i64).collect(),
-        ).map_err(|e| format!("Failed to create attention_mask array: {}", e))?;
+        // Create CowArray tensors
+        let input_ids_cow = CowArray::from(
+            ndarray::Array::from_shape_vec((1, MAX_SEQUENCE_LENGTH), input_ids_vec)
+                .map_err(|e| format!("Failed to create input_ids array: {}", e))?
+        ).into_dyn();
 
-        // Run inference
-        let input_ids_tensor = Value::from_array(input_ids_array)
+        let attention_mask_cow = CowArray::from(
+            ndarray::Array::from_shape_vec((1, MAX_SEQUENCE_LENGTH), attention_mask_vec)
+                .map_err(|e| format!("Failed to create attention_mask array: {}", e))?
+        ).into_dyn();
+
+        let input_ids_tensor = Value::from_array(self.session.allocator(), &input_ids_cow)
             .map_err(|e| format!("Failed to create input_ids tensor: {}", e))?;
-        let attention_mask_tensor = Value::from_array(attention_mask_array)
+        let attention_mask_tensor = Value::from_array(self.session.allocator(), &attention_mask_cow)
             .map_err(|e| format!("Failed to create attention_mask tensor: {}", e))?;
 
-        let inputs = ort::inputs![
-            "input_ids" => input_ids_tensor,
-            "attention_mask" => attention_mask_tensor,
-        ];
+        let inputs = vec![input_ids_tensor, attention_mask_tensor];
 
         let outputs = self.session
             .run(inputs)
@@ -121,11 +121,11 @@ impl EmbeddingModel {
 
         // Extract embeddings from output
         let output_tensor = outputs[0]
-            .try_extract_tensor::<f32>()
+            .try_extract::<f32>()
             .map_err(|e| format!("Failed to extract output tensor: {}", e))?;
 
         // Mean pooling over sequence dimension
-        let embedding = self.mean_pooling(&output_tensor.view(), &attention_mask)?;
+        let embedding = self.mean_pooling(&output_tensor, &attention_mask)?;
 
         // Normalize embedding
         let normalized = self.normalize_embedding(&embedding);
@@ -149,19 +149,29 @@ impl EmbeddingModel {
     }
 
     /// Mean pooling across token embeddings, weighted by attention mask
-    fn mean_pooling(&self, embeddings: &ndarray::ArrayView3<f32>, attention_mask: &[u32]) -> Result<Vec<f32>, String> {
+    fn mean_pooling(&self, embeddings: &OrtOwnedTensor<f32, ndarray::Dim<ndarray::IxDynImpl>>, attention_mask: &[u32]) -> Result<Vec<f32>, String> {
         let mut pooled = vec![0.0; EMBEDDING_DIM];
         let mut sum_mask = 0.0;
 
+        // Access the ndarray view from the tensor
+        let tensor_view = embeddings.view();
+        let shape = tensor_view.shape();
+        if shape.len() != 3 {
+            return Err("Expected 3D tensor for embeddings".to_string());
+        }
+
         for (i, &mask_val) in attention_mask.iter().enumerate() {
-            if i >= MAX_SEQUENCE_LENGTH {
+            if i >= MAX_SEQUENCE_LENGTH || i >= shape[1] {
                 break;
             }
             let weight = mask_val as f32;
             sum_mask += weight;
 
             for j in 0..EMBEDDING_DIM {
-                pooled[j] += embeddings[[0, i, j]] * weight;
+                if j < shape[2] {
+                    let val = tensor_view[[0, i, j]];
+                    pooled[j] += val * weight;
+                }
             }
         }
 

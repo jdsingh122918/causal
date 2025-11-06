@@ -85,6 +85,28 @@ export interface RiskAnalysis {
 
 export type AnalysisType = "Sentiment" | "Financial" | "Competitive" | "Summary" | "Risk";
 
+// Vector database types for historical context
+export interface SimilarAnalysis {
+  id: string;
+  analysis_type: string;
+  content: string;
+  similarity_score: number;
+  timestamp: string;
+  recording_id?: string;
+  project_id?: string;
+}
+
+export interface SearchFilters {
+  project_id?: string;
+  analysis_types?: string[];
+  date_range?: {
+    start_timestamp: number;
+    end_timestamp: number;
+  };
+  top_k?: number;
+  min_similarity?: number;
+}
+
 export interface IntelligenceResult {
   buffer_id: number;
   analysis_type: AnalysisType;
@@ -92,6 +114,8 @@ export interface IntelligenceResult {
   model_used: string;
   raw_text: string;
   timestamp: string;
+  similarity_score?: number; // NEW: For historical context
+  related_analyses?: SimilarAnalysis[]; // NEW: Historical context data
   sentiment?: SentimentAnalysis;
   financial?: FinancialAnalysis;
   competitive?: CompetitiveAnalysis;

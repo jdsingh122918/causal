@@ -4,17 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntelligenceAnalysis, useIntelligenceStatus } from "@/hooks/use-intelligence";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 import type {
   AnalysisType,
-  CombinedIntelligence
+  CombinedIntelligence,
+  SimilarAnalysis
 } from "@/contexts/IntelligenceContext";
-import { Brain, Settings, TestTube, Activity, AlertCircle, CheckCircle } from "lucide-react";
+import { Brain, Settings, TestTube, Activity, AlertCircle, CheckCircle, Search } from "lucide-react";
+import { SearchInterface } from "@/components/search/SearchInterface";
 
 export function IntelligenceDashboard() {
   const [testText, setTestText] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const intelligence = useIntelligence();
   const analysis = useIntelligenceAnalysis({
@@ -96,6 +100,12 @@ export function IntelligenceDashboard() {
     return "Inactive";
   };
 
+  const handleSearchResultClick = (result: SimilarAnalysis) => {
+    // For now, just switch to the test tab and show the content
+    setTestText(result.content);
+    setActiveTab("test");
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -116,180 +126,209 @@ export function IntelligenceDashboard() {
         </div>
       </div>
 
-      {/* System Status Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            System Status & Configuration
-          </CardTitle>
-          <CardDescription>
-            Configure and monitor the intelligence system
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <div className="flex items-center gap-2">
-                {status.status.isRunning ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                )}
-                <span className="text-sm">{getStatusText()}</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Agents</Label>
-              <p className="text-sm font-mono">{status.status.agentCount}</p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Model</Label>
-              <p className="text-sm font-mono">{status.status.model}</p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">API Key</Label>
-              <p className="text-sm">
-                {status.status.hasApiKey ? "Configured" : "Missing"}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="api-key">Anthropic API Key</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="api-key"
-                  type="password"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleInitialize}
-                  disabled={analysis.isProcessing || !apiKey.trim()}
-                >
-                  Initialize
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleTestConnection}
-                  disabled={!apiKey.trim()}
-                >
-                  Test
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Enabled Analysis Types</Label>
-              <div className="flex flex-wrap gap-2">
-                {intelligence.state.availableAnalysisTypes.map((type) => (
-                  <Badge
-                    key={type.type}
-                    variant={
-                      intelligence.state.config.enabled_analyses.includes(type.type as AnalysisType)
-                        ? "default"
-                        : "outline"
-                    }
-                    className="cursor-pointer"
-                    onClick={() => toggleAnalysisType(type.type as AnalysisType)}
-                  >
-                    {type.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Test Analysis Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TestTube className="h-5 w-5" />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            System Overview
+          </TabsTrigger>
+          <TabsTrigger value="search" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Semantic Search
+          </TabsTrigger>
+          <TabsTrigger value="test" className="flex items-center gap-2">
+            <TestTube className="h-4 w-4" />
             Test Analysis
-          </CardTitle>
-          <CardDescription>
-            Test the intelligence system with sample text
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="test-text">Sample Text</Label>
-            <textarea
-              id="test-text"
-              placeholder="Enter text to analyze... (e.g., 'Our Q3 revenue increased 15% to $50M, driven by strong performance in our core products. We remain optimistic about market conditions despite competitive pressures from Apple and Google.')"
-              value={testText}
-              onChange={(e) => setTestText(e.target.value)}
-              className="w-full min-h-[100px] px-3 py-2 border border-input bg-background rounded-md resize-y"
-            />
-          </div>
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-muted-foreground">
-              {analysis.processingStats.totalAnalyses > 0 && (
-                <span>
-                  Analyses: {analysis.processingStats.successfulAnalyses}/{analysis.processingStats.totalAnalyses}
-                  {analysis.processingStats.averageProcessingTime > 0 && (
-                    <span> • Avg: {analysis.processingStats.averageProcessingTime}ms</span>
+        <TabsContent value="overview" className="space-y-6">
+          {/* System Status Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                System Status & Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure and monitor the intelligence system
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <div className="flex items-center gap-2">
+                    {status.status.isRunning ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                    )}
+                    <span className="text-sm">{getStatusText()}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Agents</Label>
+                  <p className="text-sm font-mono">{status.status.agentCount}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Model</Label>
+                  <p className="text-sm font-mono">{status.status.model}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">API Key</Label>
+                  <p className="text-sm">
+                    {status.status.hasApiKey ? "Configured" : "Missing"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="api-key">Anthropic API Key</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="api-key"
+                      type="password"
+                      placeholder="sk-..."
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleInitialize}
+                      disabled={analysis.isProcessing || !apiKey.trim()}
+                    >
+                      Initialize
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleTestConnection}
+                      disabled={!apiKey.trim()}
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Enabled Analysis Types</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {intelligence.state.availableAnalysisTypes.map((type) => (
+                      <Badge
+                        key={type.type}
+                        variant={
+                          intelligence.state.config.enabled_analyses.includes(type.type as AnalysisType)
+                            ? "default"
+                            : "outline"
+                        }
+                        className="cursor-pointer"
+                        onClick={() => toggleAnalysisType(type.type as AnalysisType)}
+                      >
+                        {type.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="search" className="space-y-6">
+          <SearchInterface
+            onResultClick={handleSearchResultClick}
+            showFilters={true}
+            compact={false}
+          />
+        </TabsContent>
+
+        <TabsContent value="test" className="space-y-6">
+          {/* Test Analysis Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TestTube className="h-5 w-5" />
+                Test Analysis
+              </CardTitle>
+              <CardDescription>
+                Test the intelligence system with sample text
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="test-text">Sample Text</Label>
+                <textarea
+                  id="test-text"
+                  placeholder="Enter text to analyze... (e.g., 'Our Q3 revenue increased 15% to $50M, driven by strong performance in our core products. We remain optimistic about market conditions despite competitive pressures from Apple and Google.')"
+                  value={testText}
+                  onChange={(e) => setTestText(e.target.value)}
+                  className="w-full min-h-[100px] px-3 py-2 border border-input bg-background rounded-md resize-y"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                  {analysis.processingStats.totalAnalyses > 0 && (
+                    <span>
+                      Analyses: {analysis.processingStats.successfulAnalyses}/{analysis.processingStats.totalAnalyses}
+                      {analysis.processingStats.averageProcessingTime > 0 && (
+                        <span> • Avg: {analysis.processingStats.averageProcessingTime}ms</span>
+                      )}
+                    </span>
                   )}
-                </span>
+                </div>
+                <Button
+                  onClick={handleTestAnalysis}
+                  disabled={!analysis.isReady || analysis.isProcessing || !testText.trim()}
+                >
+                  {analysis.isProcessing ? "Analyzing..." : "Analyze"}
+                </Button>
+              </div>
+
+              {analysis.lastError && (
+                <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-700">{analysis.lastError}</p>
+                </div>
               )}
-            </div>
-            <Button
-              onClick={handleTestAnalysis}
-              disabled={!analysis.isReady || analysis.isProcessing || !testText.trim()}
-            >
-              {analysis.isProcessing ? "Analyzing..." : "Analyze"}
-            </Button>
-          </div>
+            </CardContent>
+          </Card>
 
-          {analysis.lastError && (
-            <div className="p-3 rounded-md bg-red-50 border border-red-200">
-              <p className="text-sm text-red-700">{analysis.lastError}</p>
-            </div>
+          {/* Results Display */}
+          {analysis.latestResult && (
+            <IntelligenceResults result={analysis.latestResult} />
           )}
-        </CardContent>
-      </Card>
 
-      {/* Results Display */}
-      {analysis.latestResult && (
-        <IntelligenceResults result={analysis.latestResult} />
-      )}
-
-      {/* Processing Stats */}
-      {analysis.processingStats.totalAnalyses > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance Stats</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold">{analysis.processingStats.totalAnalyses}</p>
-                <p className="text-sm text-muted-foreground">Total Analyses</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-500">
-                  {analysis.processingStats.successfulAnalyses}
-                </p>
-                <p className="text-sm text-muted-foreground">Successful</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">
-                  {analysis.processingStats.averageProcessingTime}ms
-                </p>
-                <p className="text-sm text-muted-foreground">Avg Processing</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Processing Stats */}
+          {analysis.processingStats.totalAnalyses > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Stats</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">{analysis.processingStats.totalAnalyses}</p>
+                    <p className="text-sm text-muted-foreground">Total Analyses</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-500">
+                      {analysis.processingStats.successfulAnalyses}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Successful</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold">
+                      {analysis.processingStats.averageProcessingTime}ms
+                    </p>
+                    <p className="text-sm text-muted-foreground">Avg Processing</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

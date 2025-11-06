@@ -1,5 +1,6 @@
 import { TrendingUp } from "lucide-react";
 import { IntelligenceTile } from "../IntelligenceTile";
+import { AnalyticsOverview } from "@/components/analytics/AnalyticsOverview";
 import type { LayoutMode } from "@/hooks/intelligence/use-tile-layout";
 
 interface AnalyticsTileProps {
@@ -10,10 +11,8 @@ interface AnalyticsTileProps {
 export function AnalyticsTile({ isRecording, layoutMode }: AnalyticsTileProps) {
   const renderContent = () => {
     return (
-      <div className="flex items-center justify-center h-full text-center p-4">
-        <p className="text-sm text-muted-foreground">
-          Analytics dashboard coming soon
-        </p>
+      <div className="p-4 h-full overflow-y-auto">
+        <AnalyticsOverview />
       </div>
     );
   };

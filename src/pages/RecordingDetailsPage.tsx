@@ -136,5 +136,3 @@ export function RecordingDetailsPage() {
     </div>
   );
 }
-
-export default RecordingDetailsPage;

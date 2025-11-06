@@ -5,9 +5,9 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { RecordingControls } from "@/components/recording/RecordingControls";
 import { TranscriptDisplay } from "@/components/recording/TranscriptDisplay";
 import { RecordingHistory } from "@/components/recording/RecordingHistory";
-import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { SettingsPanel } from "@/components/panels/SettingsPanel";
 import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
 
 function ProjectView() {

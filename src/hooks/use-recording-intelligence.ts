@@ -262,11 +262,18 @@ function formatAnalysisResult(
 
     case "Risk":
       if (result.risk) {
-        formatted += `**Risk Level:** ${result.risk.risk_level}\n`;
-        if (result.risk.risks_identified.length > 0) {
-          formatted += `**Risks Identified:**\n`;
-          result.risk.risks_identified.forEach((risk) => {
-            formatted += `- ${risk}\n`;
+        formatted += `**Risk Level:** ${result.risk.overall_risk_level}\n`;
+        formatted += `**Risk Summary:** ${result.risk.risk_summary}\n`;
+        if (result.risk.promises_identified.length > 0) {
+          formatted += `**Promises Identified:**\n`;
+          result.risk.promises_identified.forEach((promise) => {
+            formatted += `- ${promise.promise_text} (${promise.specificity})\n`;
+          });
+        }
+        if (result.risk.delivery_risks.length > 0) {
+          formatted += `**Delivery Risks:**\n`;
+          result.risk.delivery_risks.forEach((risk) => {
+            formatted += `- ${risk.risk_area}: ${risk.potential_impact} (${risk.severity})\n`;
           });
         }
       }

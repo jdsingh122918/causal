@@ -13,13 +13,13 @@ import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
 import { IntelligenceDashboard } from "@/components/intelligence";
-import { IntelligenceSidebar } from "@/components/intelligence/IntelligenceSidebar";
+import { IntelligenceGrid } from "@/components/intelligence/IntelligenceGrid";
 import { ProjectIntelligenceSettings } from "@/components/settings/ProjectIntelligenceSettings";
 
 function ProjectView() {
   const { currentProject, getProjectIntelligence } = useProjects();
   const { state: transcriptionState } = useTranscription();
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [showHistorical] = useState(false); // TODO: Add UI control to toggle historical analysis
 
   // Initialize recording intelligence hook for automatic analysis capture
   useRecordingIntelligence();
@@ -61,15 +61,33 @@ function ProjectView() {
         <RecordingControls />
       </ErrorBoundary>
 
-      <div className="flex gap-6 h-full">
-        {/* Main content area */}
-        <div className={`flex-1 grid gap-6 ${
-          isRecording
-            ? "grid-cols-1"
-            : isIntelligenceEnabled && sidebarVisible
-            ? "grid-cols-1 xl:grid-cols-2"
-            : "grid-cols-1 lg:grid-cols-2"
-        }`}>
+      {/* Main content layout */}
+      {isIntelligenceEnabled ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+          {/* Left column: Transcript and Recording History */}
+          <div className="space-y-6">
+            <ErrorBoundary>
+              <TranscriptDisplay />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <RecordingHistory isRecording={isRecording} />
+            </ErrorBoundary>
+          </div>
+
+          {/* Right column: Intelligence Tiles */}
+          <div className="h-full">
+            <ErrorBoundary>
+              <IntelligenceGrid
+                enabledAnalyses={intelligenceConfig?.analyses ?? ["Sentiment", "Financial", "Competitive", "Summary", "Risk"]}
+                isRecording={isRecording}
+                showHistorical={showHistorical}
+                autoAnalyze={intelligenceConfig?.autoAnalyze ?? true}
+              />
+            </ErrorBoundary>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           <ErrorBoundary>
             <TranscriptDisplay />
           </ErrorBoundary>
@@ -77,19 +95,7 @@ function ProjectView() {
             <RecordingHistory isRecording={isRecording} />
           </ErrorBoundary>
         </div>
-
-        {/* Intelligence Sidebar */}
-        {isIntelligenceEnabled && (
-          <ErrorBoundary>
-            <IntelligenceSidebar
-              isVisible={sidebarVisible}
-              onToggle={() => setSidebarVisible(!sidebarVisible)}
-              autoAnalyze={intelligenceConfig?.autoAnalyze ?? true}
-              enabledAnalyses={intelligenceConfig?.analyses ?? ["Sentiment", "Financial", "Competitive", "Summary", "Risk"]}
-            />
-          </ErrorBoundary>
-        )}
-      </div>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@
 //! components and starts the Tauri application loop.
 
 mod database;
+mod embeddings;
 mod encryption;
 mod error;
 mod intelligence;
@@ -38,6 +39,7 @@ mod transcription;
 pub mod test_utils;
 
 use database::Database;
+use embeddings::commands::EmbeddingsState;
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};
 use intelligence::commands::IntelligenceState;
@@ -239,6 +241,7 @@ pub fn run() {
         metrics,
     });
     let intelligence_state = Mutex::new(IntelligenceState::default());
+    let embeddings_state = Mutex::new(EmbeddingsState::default());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -318,6 +321,7 @@ pub fn run() {
         .manage(database)
         .manage(logging_state)
         .manage(intelligence_state)
+        .manage(embeddings_state)
         .invoke_handler(tauri::generate_handler![
             greet,
             transcription::list_audio_devices,
@@ -373,9 +377,18 @@ pub fn run() {
             intelligence::get_intelligence_status,
             intelligence::initialize_intelligence_system,
             intelligence::analyze_text_buffer,
+            intelligence::analyze_and_store_text_buffer,
             intelligence::get_available_analysis_types,
             intelligence::clear_intelligence_system,
             intelligence::test_intelligence_connectivity,
+            // Embeddings and semantic search commands
+            embeddings::initialize_embeddings_service,
+            embeddings::is_embeddings_initialized,
+            embeddings::store_analysis_with_embedding,
+            embeddings::search_analyses_semantic,
+            embeddings::get_analysis_context,
+            embeddings::get_analysis_trends,
+            embeddings::get_analysis_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

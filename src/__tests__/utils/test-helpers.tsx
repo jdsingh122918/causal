@@ -2,7 +2,7 @@ import { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AppProviders } from '@/contexts/AppProviders';
-import { Project, Recording } from '@/contexts/ProjectsContext';
+import { Project, Recording } from '@/lib/types';
 
 /**
  * Custom render function that wraps components with necessary providers

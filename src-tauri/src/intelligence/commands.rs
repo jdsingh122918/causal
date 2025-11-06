@@ -293,6 +293,171 @@ pub fn clear_intelligence_system(
     Ok("Intelligence system cleared successfully".to_string())
 }
 
+/// Analyze text buffer and store results with embeddings
+#[tauri::command]
+pub async fn analyze_and_store_text_buffer(
+    intelligence_state: State<'_, Mutex<IntelligenceState>>,
+    embeddings_state: State<'_, Mutex<crate::embeddings::commands::EmbeddingsState>>,
+    database: State<'_, crate::database::Database>,
+    app: AppHandle,
+    recording_id: String,
+    project_id: String,
+    buffer_id: u32,
+    text: String,
+) -> Result<CombinedIntelligence, String> {
+    let (config, enabled_analyses) = {
+        let state = intelligence_state.lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+
+        if state.config.api_key.is_empty() {
+            return Err("Intelligence system not configured. Set API key first.".to_string());
+        }
+
+        if state.config.enabled_analyses.is_empty() {
+            return Err("No analysis types enabled.".to_string());
+        }
+
+        (state.config.clone(), state.config.enabled_analyses.clone())
+    };
+
+    info!("🧠 Starting analysis with storage for recording {}", recording_id);
+
+    // Get embedding service
+    let service_arc = {
+        let state = embeddings_state.lock()
+            .map_err(|e| format!("Failed to lock embeddings state: {}", e))?;
+        state.service.clone()
+    };
+
+    // Create a transcription buffer for analysis
+    let buffer = TranscriptionBuffer {
+        turn_order: buffer_id,
+        texts: vec![text.clone()],
+        start_time: Instant::now(),
+        end_time: Instant::now(),
+        is_complete: true,
+    };
+
+    // Run analysis with individual agents
+    let mut results = HashMap::new();
+
+    for analysis_type in &enabled_analyses {
+        // Get historical context if embeddings are available
+        let context = if let Ok(service_guard) = service_arc.lock() {
+            if let Some(service) = service_guard.as_ref() {
+                let conn_guard = database.get_connection().await;
+                service.get_historical_context(
+                    &conn_guard,
+                    &text,
+                    &project_id,
+                    analysis_type.as_str(),
+                    3,
+                ).unwrap_or_default()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        // Run analysis
+        let result = match analysis_type {
+            AnalysisType::Sentiment => {
+                let agent = SentimentAgent::new(config.api_key.clone());
+                agent.analyze(&buffer).await
+            },
+            AnalysisType::Financial => {
+                let agent = FinancialAgent::new(config.api_key.clone());
+                agent.analyze(&buffer).await
+            },
+            AnalysisType::Competitive => {
+                let agent = CompetitiveAgent::new(config.api_key.clone());
+                agent.analyze(&buffer).await
+            },
+            AnalysisType::Summary => {
+                let agent = SummaryAgent::new(config.api_key.clone());
+                agent.analyze(&buffer).await
+            },
+            AnalysisType::Risk => {
+                let agent = RiskAgent::new(config.api_key.clone());
+                agent.analyze(&buffer).await
+            },
+        };
+
+        match result {
+            Ok(analysis_result) => {
+                // Store analysis with embedding
+                if let Ok(service_guard) = service_arc.lock() {
+                    if let Some(service) = service_guard.as_ref() {
+                        let conn_guard = database.get_connection().await;
+
+                        // Serialize analysis result
+                        let analysis_content = serde_json::to_string(&analysis_result)
+                            .unwrap_or_default();
+
+                        // Calculate confidence score based on analysis type
+                        let confidence_score = match &analysis_result.sentiment {
+                            Some(s) => Some(s.confidence),
+                            None => None,
+                        };
+
+                        // Store with embedding
+                        if let Err(e) = service.store_analysis_with_embedding(
+                            &conn_guard,
+                            &recording_id,
+                            &project_id,
+                            analysis_type.as_str(),
+                            &analysis_content,
+                            &text,
+                            confidence_score,
+                            Some(analysis_result.processing_time_ms as i64),
+                        ) {
+                            warn!("Failed to store analysis with embedding: {}", e);
+                        } else {
+                            debug!("Stored analysis {} with embedding", analysis_type.as_str());
+                        }
+                    }
+                }
+
+                results.insert(*analysis_type, analysis_result);
+            },
+            Err(e) => {
+                warn!("Agent {:?} failed: {}", analysis_type, e);
+            }
+        }
+    }
+
+    let combined_result = CombinedIntelligence {
+        buffer_id,
+        timestamp: chrono::Utc::now(),
+        processing_complete: results.len() == enabled_analyses.len(),
+        results: results.clone(),
+    };
+
+    // Emit intelligence events to frontend
+    for (analysis_type, intelligence_result) in &results {
+        let event = IntelligenceEvent {
+            buffer_id,
+            analysis_type: *analysis_type,
+            result: intelligence_result.clone(),
+            all_analyses_complete: combined_result.processing_complete,
+        };
+
+        if let Err(e) = app.emit("intelligence_result", &event) {
+            warn!("Failed to emit intelligence event: {}", e);
+        }
+    }
+
+    info!(
+        "✅ Analysis with storage complete for recording {}: {}/{} agents succeeded",
+        recording_id,
+        results.len(),
+        enabled_analyses.len()
+    );
+
+    Ok(combined_result)
+}
+
 /// Test intelligence system connectivity (useful for debugging)
 #[tauri::command]
 pub async fn test_intelligence_connectivity(

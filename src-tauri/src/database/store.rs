@@ -133,6 +133,10 @@ impl Database {
         conn.execute("PRAGMA temp_store=MEMORY", [])
             .map_err(|e| format!("Failed to set temp store: {}", e))?;
 
+        // Initialize embeddings schema for vector storage
+        crate::embeddings::storage::init_embeddings_schema(&conn)
+            .map_err(|e| format!("Failed to initialize embeddings schema: {}", e))?;
+
         Ok(())
     }
 
@@ -687,6 +691,15 @@ impl Database {
     }
 
     // Utility methods
+
+    /// Get a locked database connection for raw SQL operations
+    ///
+    /// This method is primarily intended for internal use by other modules
+    /// that need direct database access (like embeddings storage).
+    pub async fn get_connection(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.connection.lock().await
+    }
+
     pub async fn get_project_count(&self) -> usize {
         let conn = self.connection.lock().await;
 

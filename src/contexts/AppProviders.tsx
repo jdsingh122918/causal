@@ -5,6 +5,7 @@ import { ProjectsProvider } from "./ProjectsContext";
 import { RecordingsProvider } from "./RecordingsContext";
 import { TranscriptionProvider } from "./TranscriptionContext";
 import { NavigationProvider } from "./NavigationContext";
+import { IntelligenceProvider } from "./IntelligenceContext";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
@@ -66,8 +67,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
                         <RecordingsProvider>
                           <ProviderErrorBoundary name="Transcription">
                             <TranscriptionProvider>
-                              {children}
-                              <Toaster />
+                              <ProviderErrorBoundary name="Intelligence">
+                                <IntelligenceProvider>
+                                  {children}
+                                  <Toaster />
+                                </IntelligenceProvider>
+                              </ProviderErrorBoundary>
                             </TranscriptionProvider>
                           </ProviderErrorBoundary>
                         </RecordingsProvider>

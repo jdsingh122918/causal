@@ -319,7 +319,7 @@ impl AudioCapture {
                 }
             };
 
-            tracing::debug!("Audio stream started on dedicated thread");
+            // Audio stream started - no debug logging needed
 
             // Keep the stream alive until we receive a stop command
             loop {

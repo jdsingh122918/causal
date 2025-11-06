@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { Project, CreateProjectRequest } from "@/lib/types";
+import { Project, CreateProjectRequest, IntelligenceConfig } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { useProjectEvents } from "@/hooks/use-realtime-events";
 
@@ -14,6 +14,8 @@ interface ProjectsContextType {
   deleteProject: (projectId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
   refreshCurrentProject: () => Promise<void>;
+  updateProjectIntelligence: (projectId: string, config: IntelligenceConfig) => Promise<void>;
+  getProjectIntelligence: (projectId?: string) => IntelligenceConfig | null;
 }
 
 const ProjectsContext = createContext<ProjectsContextType | null>(null);
@@ -221,6 +223,99 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Business Intelligence Configuration Methods
+  const getProjectIntelligenceKey = (projectId: string) => `causal-project-intelligence-${projectId}`;
+
+  const updateProjectIntelligence = async (projectId: string, config: IntelligenceConfig) => {
+    try {
+      // Store BI config in localStorage
+      const key = getProjectIntelligenceKey(projectId);
+      localStorage.setItem(key, JSON.stringify(config));
+
+      // Update the project in state if it's loaded
+      setProjects(prev => prev.map(project =>
+        project.id === projectId
+          ? { ...project, intelligence: config }
+          : project
+      ));
+
+      // Update current project if it's the one being modified
+      if (currentProject?.id === projectId) {
+        setCurrentProject(prev => prev ? { ...prev, intelligence: config } : prev);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Failed to update project intelligence config:", errorMessage);
+      throw error;
+    }
+  };
+
+  const getProjectIntelligence = (projectId?: string): IntelligenceConfig | null => {
+    const targetProjectId = projectId || currentProject?.id;
+    if (!targetProjectId) return null;
+
+    try {
+      // First check if project has intelligence config in state
+      const project = projects.find(p => p.id === targetProjectId) || currentProject;
+      if (project?.intelligence) {
+        return project.intelligence;
+      }
+
+      // Fall back to localStorage
+      const key = getProjectIntelligenceKey(targetProjectId);
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const config = JSON.parse(stored) as IntelligenceConfig;
+
+        // Migration: Add "Risk" analysis if it's missing from old configurations
+        const allAnalysisTypes = ["Sentiment", "Financial", "Competitive", "Summary", "Risk"];
+        const hasAllTypes = allAnalysisTypes.every(type => config.analyses.includes(type as any));
+
+        if (!hasAllTypes) {
+          console.log(`🔄 Migrating project ${targetProjectId} intelligence config to include all analysis types`);
+          const migratedConfig = {
+            ...config,
+            analyses: allAnalysisTypes as any
+          };
+
+          // Save the migrated config back to localStorage
+          localStorage.setItem(key, JSON.stringify(migratedConfig));
+          return migratedConfig;
+        }
+
+        return config;
+      }
+
+      // Return default config if none exists
+      return {
+        enabled: false,
+        analyses: ["Sentiment", "Financial", "Competitive", "Summary", "Risk"],
+        autoAnalyze: true,
+        analysisFrequency: "sentence",
+      };
+    } catch (error) {
+      console.error("Failed to get project intelligence config:", error);
+      return null;
+    }
+  };
+
+  // Load intelligence configs for all projects on mount
+  useEffect(() => {
+    const loadIntelligenceConfigs = () => {
+      setProjects(prev => prev.map(project => {
+        if (!project.intelligence) {
+          const config = getProjectIntelligence(project.id);
+          return config ? { ...project, intelligence: config } : project;
+        }
+        return project;
+      }));
+    };
+
+    if (projects.length > 0) {
+      loadIntelligenceConfigs();
+    }
+  }, [projects.length]); // Only run when projects are first loaded
+
   // Combine real projects with optimistic operations for display
   const displayProjects = [
     ...projects,
@@ -240,6 +335,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         deleteProject,
         refreshProjects,
         refreshCurrentProject,
+        updateProjectIntelligence,
+        getProjectIntelligence,
       }}
     >
       {children}

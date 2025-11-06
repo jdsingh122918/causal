@@ -30,12 +30,17 @@
 mod database;
 mod encryption;
 mod error;
+mod intelligence;
 mod logging;
 mod transcription;
+
+#[cfg(test)]
+pub mod test_utils;
 
 use database::Database;
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};
+use intelligence::commands::IntelligenceState;
 use logging::{MetricsCollector, MetricsSnapshot, LogEntry, LogFileInfo, LoggingStats};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -197,25 +202,11 @@ pub fn run() {
         std::process::exit(1);
     }
 
-    tracing::info!("🚀 Causal application starting");
-
-    // Log comprehensive platform and environment information
-    tracing::info!("🖥️ Platform information: os={} arch={} family={}",
-        std::env::consts::OS,
-        std::env::consts::ARCH,
-        std::env::consts::FAMILY
-    );
-
-    // Log Cargo package information
-    tracing::info!("📦 Application version: {} ({})",
+    tracing::info!("🚀 Causal v{} starting on {} {}",
         env!("CARGO_PKG_VERSION"),
-        env!("CARGO_PKG_NAME")
+        std::env::consts::OS,
+        std::env::consts::ARCH
     );
-
-    // Log environment variables that might affect behavior
-    if let Ok(rust_log) = std::env::var("RUST_LOG") {
-        tracing::info!("🔍 RUST_LOG environment: {}", rust_log);
-    }
 
     // Windows-specific debugging
     #[cfg(target_os = "windows")]
@@ -247,6 +238,7 @@ pub fn run() {
         log_dir: fallback_log_dir,
         metrics,
     });
+    let intelligence_state = Mutex::new(IntelligenceState::default());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -254,32 +246,23 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            tracing::info!("🚀 Tauri application setup starting");
-
             // Log the actual Tauri-provided log directory for reference
             if let Ok(tauri_log_dir) = app.path().app_log_dir() {
-                tracing::info!(
-                    tauri_log_dir = %tauri_log_dir.display(),
-                    "Tauri log directory available"
-                );
-
-                // Also log to stderr for Windows debugging
                 eprintln!("📁 Log files location: {}", tauri_log_dir.display());
             }
 
             // Get the main window handle for debugging
             if let Some(window) = app.get_webview_window("main") {
-                tracing::info!("🪟 Main window found, setting up event listeners");
 
                 // Window event logging
                 let window_clone = window.clone();
                 window.on_window_event(move |event| {
                     match event {
-                        tauri::WindowEvent::Resized(size) => {
-                            tracing::info!("🪟 Window resized: {}x{}", size.width, size.height);
+                        tauri::WindowEvent::Resized(_size) => {
+                            // Window resize events are too noisy - skip logging
                         }
-                        tauri::WindowEvent::Moved(position) => {
-                            tracing::info!("🪟 Window moved: ({}, {})", position.x, position.y);
+                        tauri::WindowEvent::Moved(_position) => {
+                            // Window move events are too noisy - skip logging
                         }
                         tauri::WindowEvent::CloseRequested { .. } => {
                             tracing::info!("🪟 Window close requested");
@@ -287,8 +270,8 @@ pub fn run() {
                         tauri::WindowEvent::Destroyed => {
                             tracing::info!("🪟 Window destroyed");
                         }
-                        tauri::WindowEvent::Focused(focused) => {
-                            tracing::info!("🪟 Window focus changed: {}", focused);
+                        tauri::WindowEvent::Focused(_focused) => {
+                            // Window focus events are too noisy - skip logging
                         }
                         tauri::WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size, .. } => {
                             tracing::info!(
@@ -302,23 +285,14 @@ pub fn run() {
                             tracing::info!("🪟 Theme changed: {:?}", theme);
                         }
                         _ => {
-                            tracing::debug!("🪟 Other window event: {:?}", event);
+                            tracing::debug!("Other window event: {:?}", event);
                         }
                     }
                 });
 
-                // Log current window state
-                if let Ok(size) = window_clone.inner_size() {
-                    tracing::info!("🪟 Initial window size: {}x{}", size.width, size.height);
-                }
-                if let Ok(position) = window_clone.outer_position() {
-                    tracing::info!("🪟 Initial window position: ({}, {})", position.x, position.y);
-                }
-                if let Ok(is_visible) = window_clone.is_visible() {
-                    tracing::info!("🪟 Window visible: {}", is_visible);
-                }
-                if let Ok(is_focused) = window_clone.is_focused() {
-                    tracing::info!("🪟 Window focused: {}", is_focused);
+                // Log current window state in single line
+                if let (Ok(size), Ok(position)) = (window_clone.inner_size(), window_clone.outer_position()) {
+                    tracing::info!("🪟 Window: {}x{} at ({}, {})", size.width, size.height, position.x, position.y);
                 }
 
                 // Webview-specific debugging for Windows
@@ -337,12 +311,13 @@ pub fn run() {
                 tracing::error!("❌ Main window not found during setup!");
             }
 
-            tracing::info!("✅ Tauri application setup completed successfully");
+            tracing::info!("✅ Application ready");
             Ok(())
         })
         .manage(AppState::default())
         .manage(database)
         .manage(logging_state)
+        .manage(intelligence_state)
         .invoke_handler(tauri::generate_handler![
             greet,
             transcription::list_audio_devices,
@@ -392,6 +367,15 @@ pub fn run() {
             clear_old_logs,
             clear_all_logs,
             get_debug_info,
+            // Intelligence system commands
+            intelligence::get_intelligence_config,
+            intelligence::set_intelligence_config,
+            intelligence::get_intelligence_status,
+            intelligence::initialize_intelligence_system,
+            intelligence::analyze_text_buffer,
+            intelligence::get_available_analysis_types,
+            intelligence::clear_intelligence_system,
+            intelligence::test_intelligence_connectivity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

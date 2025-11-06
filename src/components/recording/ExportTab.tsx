@@ -1,18 +1,21 @@
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { Download, FileText, FileJson } from 'lucide-react';
+import { Download, FileText, FileJson, Brain } from 'lucide-react';
 import { Recording } from '../../lib/types';
+import { useRecordingIntelligence } from '../../hooks/use-recording-intelligence';
 
 interface ExportTabProps {
   recording: Recording;
 }
 
 export function ExportTab({ recording }: ExportTabProps) {
+  const recordingIntelligence = useRecordingIntelligence();
+
   const exportAsText = () => {
     const content = [
       `Recording: ${recording.name}`,
       `Date: ${new Date(recording.created_at).toLocaleDateString()}`,
-      `Duration: ${Math.floor(recording.metadata.duration_seconds / 60)}:${String(recording.metadata.duration_seconds % 60).padStart(2, '0')}`,
+      `Duration: ${Math.floor(recording.metadata.duration_seconds / 60)}:${String(Math.floor(recording.metadata.duration_seconds % 60)).padStart(2, '0')}`,
       '',
       'RAW TRANSCRIPT:',
       recording.raw_transcript || 'No raw transcript available',
@@ -71,6 +74,29 @@ export function ExportTab({ recording }: ExportTabProps) {
     URL.revokeObjectURL(url);
   };
 
+  const exportWithIntelligence = async () => {
+    try {
+      const analysisData = await recordingIntelligence.exportRecordingWithAnalysis(recording.id);
+
+      if (analysisData) {
+        const blob = new Blob([analysisData], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${recording.name}_with_analysis.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        alert('No intelligence analysis found for this recording.');
+      }
+    } catch (error) {
+      console.error('Failed to export with analysis:', error);
+      alert('Failed to export recording with analysis.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
@@ -85,7 +111,7 @@ export function ExportTab({ recording }: ExportTabProps) {
         </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -117,6 +143,22 @@ export function ExportTab({ recording }: ExportTabProps) {
             </Button>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600" />
+              <h4 className="font-semibold">With AI Analysis</h4>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Export transcript with comprehensive AI analysis including sentiment, financial insights, competitive intelligence, and risk assessment.
+            </p>
+            <Button onClick={exportWithIntelligence} variant="outline" className="w-full bg-purple-50 border-purple-200 hover:bg-purple-100">
+              <Brain className="h-4 w-4 mr-2" />
+              Export with Analysis
+            </Button>
+          </div>
+        </Card>
       </div>
 
       <Card className="p-6">
@@ -133,7 +175,7 @@ export function ExportTab({ recording }: ExportTabProps) {
               <span className="text-muted-foreground">Date:</span> {new Date(recording.created_at).toLocaleDateString()}
             </div>
             <div>
-              <span className="text-muted-foreground">Duration:</span> {Math.floor(recording.metadata.duration_seconds / 60)}:{String(recording.metadata.duration_seconds % 60).padStart(2, '0')}
+              <span className="text-muted-foreground">Duration:</span> {Math.floor(recording.metadata.duration_seconds / 60)}:{String(Math.floor(recording.metadata.duration_seconds % 60)).padStart(2, '0')}
             </div>
           </div>
         </div>

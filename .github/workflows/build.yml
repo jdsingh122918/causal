@@ -42,8 +42,36 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc --noEmit
 
+      - name: Run frontend tests
+        run: npm run test:run
+
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
       - name: Run Rust tests
         run: cd src-tauri && cargo test
+
+      - name: Run Rust tests with coverage
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          cd src-tauri
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml --output-dir ../coverage
+
+      - name: Upload Rust coverage to Codecov
+        if: matrix.platform == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/cobertura.xml
+          flags: backend
+          name: backend-coverage
 
       - name: Build frontend
         run: npm run build

@@ -44,6 +44,21 @@ export interface TranscriptSummary {
   };
 }
 
+// Business Intelligence Types
+export type AnalysisType =
+  | "Sentiment"
+  | "Financial"
+  | "Competitive"
+  | "Summary"
+  | "Risk";
+
+export interface IntelligenceConfig {
+  enabled: boolean;
+  analyses: AnalysisType[];
+  autoAnalyze: boolean;
+  analysisFrequency: "sentence" | "paragraph" | "manual";
+}
+
 // Project Types
 export interface Project {
   id: string;
@@ -51,6 +66,7 @@ export interface Project {
   description: string;
   created_at: number; // SystemTime as Unix timestamp
   updated_at: number;
+  intelligence?: IntelligenceConfig; // Optional BI configuration
 }
 
 export interface CreateProjectRequest {

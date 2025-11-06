@@ -5,6 +5,7 @@ import { useProjects } from "./ProjectsContext";
 import { useSettings } from "./SettingsContext";
 import { useRecordingEvents } from "@/hooks/use-realtime-events";
 import * as tauri from "@/lib/tauri";
+import type { RecordingAnalysisSnapshot } from "@/hooks/use-recording-intelligence";
 
 interface RecordingsContextType {
   recordings: Recording[];
@@ -20,6 +21,8 @@ interface RecordingsContextType {
   exportRecording: (recordingId: string, format: "txt" | "json") => Promise<void>;
   setCurrentRecording: (recording: Recording | null) => void;
   refreshRecordings: () => Promise<void>;
+  attachIntelligenceAnalysis?: (recordingId: string, snapshot: RecordingAnalysisSnapshot) => Promise<void>;
+  getIntelligenceAnalysis?: (recordingId: string) => Promise<RecordingAnalysisSnapshot | null>;
 }
 
 const RecordingsContext = createContext<RecordingsContextType | null>(null);
@@ -477,6 +480,40 @@ export function RecordingsProvider({
     }
   };
 
+  // Intelligence analysis persistence methods (localStorage for now, will be moved to backend in Phase 4)
+  const attachIntelligenceAnalysis = async (
+    recordingId: string,
+    snapshot: RecordingAnalysisSnapshot
+  ) => {
+    try {
+      // For now, store in localStorage with recording ID as key
+      const storageKey = `intelligence_analysis_${recordingId}`;
+      localStorage.setItem(storageKey, JSON.stringify(snapshot));
+      console.log(`Intelligence analysis attached to recording ${recordingId}`);
+    } catch (error) {
+      console.error("Failed to store intelligence analysis:", error);
+      throw error;
+    }
+  };
+
+  const getIntelligenceAnalysis = async (
+    recordingId: string
+  ): Promise<RecordingAnalysisSnapshot | null> => {
+    try {
+      const storageKey = `intelligence_analysis_${recordingId}`;
+      const storedData = localStorage.getItem(storageKey);
+
+      if (storedData) {
+        return JSON.parse(storedData) as RecordingAnalysisSnapshot;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Failed to retrieve intelligence analysis:", error);
+      return null;
+    }
+  };
+
   // Combine real recordings with optimistic operations for display
   const displayRecordings = [
     ...recordings,
@@ -499,6 +536,8 @@ export function RecordingsProvider({
         exportRecording,
         setCurrentRecording,
         refreshRecordings,
+        attachIntelligenceAnalysis,
+        getIntelligenceAnalysis,
       }}
     >
       {children}

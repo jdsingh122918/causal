@@ -32,7 +32,8 @@ pub struct WordResult {
 #[serde(tag = "type")]
 enum ServerMessage {
     Begin {
-        id: String,
+        #[allow(dead_code)]
+        id: String, // Session ID from AssemblyAI - received but not currently used
         #[allow(dead_code)]
         expires_at: u64, // Unix timestamp - received but not currently used
     },
@@ -133,8 +134,8 @@ impl AssemblyAIClient {
                 match msg_result {
                     Ok(Message::Text(text)) => {
                         match serde_json::from_str::<ServerMessage>(&text) {
-                            Ok(ServerMessage::Begin { id, expires_at: _ }) => {
-                                tracing::debug!("Session started: {}", id);
+                            Ok(ServerMessage::Begin { id: _, expires_at: _ }) => {
+                                // Session started - no logging needed
                             }
                             Ok(ServerMessage::Turn {
                                 turn_order,
@@ -162,22 +163,16 @@ impl AssemblyAIClient {
                                             .collect(),
                                     };
 
-                                    // Log both partial and complete turns for debugging
-                                    let preview = if transcript.len() > 60 {
-                                        format!("{}...", &transcript[..60])
-                                    } else {
-                                        transcript.clone()
-                                    };
-
+                                    // Only log completed turns, skip partial turn noise
                                     if end_of_turn {
+                                        let preview = if transcript.len() > 40 {
+                                            format!("{}...", &transcript[..40])
+                                        } else {
+                                            transcript.clone()
+                                        };
                                         tracing::info!("✓ Turn {}: \"{}\"", turn_order, preview);
-                                    } else {
-                                        tracing::debug!(
-                                            "⋯ Turn {} (partial): \"{}\"",
-                                            turn_order,
-                                            preview
-                                        );
                                     }
+                                    // No logging for partial turns - reduces noise
 
                                     if let Err(e) = transcript_tx.send(result) {
                                         // This is expected when stopping - the receiver is dropped
@@ -253,13 +248,7 @@ impl AssemblyAIClient {
                             break;
                         }
 
-                        if sample_count.is_multiple_of(48000 * 10) {
-                            // Log every 10 seconds (at 48kHz)
-                            tracing::info!(
-                                "🎤 Audio streaming: ~{:.0}s",
-                                sample_count as f32 / 48000.0
-                            );
-                        }
+                        // Remove verbose periodic logging - just stream audio without noise
                     }
                     None => {
                         // Channel closed by sender (stop command received)

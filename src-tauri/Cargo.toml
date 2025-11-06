@@ -39,7 +39,7 @@ tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 reqwest = { version = "0.12", features = ["json"] }
 
 # Date/time handling
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 
 # Audio processing
 rubato = "0.15"
@@ -57,6 +57,9 @@ regex = "1"
 
 # Anthropic SDK for AI enhancement
 anthropic-sdk = "0.1"
+
+# Async traits for intelligence agents
+async-trait = "0.1"
 
 # UUID generation
 uuid = { version = "1.11", features = ["v4", "serde"] }

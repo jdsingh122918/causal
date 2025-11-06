@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/contexts/ProjectsContext";
-import { Plus, Folder, Settings, Bug, MoreHorizontal, Trash2 } from "lucide-react";
+import { Plus, Folder, Settings, Bug, MoreHorizontal, Trash2, Brain } from "lucide-react";
 import { NewProjectDialog } from "@/components/dialogs/NewProjectDialog";
 import { DeleteProjectDialog } from "@/components/dialogs/DeleteProjectDialog";
 import { cn } from "@/lib/utils";
@@ -121,6 +121,19 @@ export function ProjectsSidebar() {
             <SidebarGroupLabel>Tools</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/intelligence')}
+                    isActive={location.pathname === '/intelligence'}
+                    className={cn(
+                      "w-full justify-start",
+                      location.pathname === '/intelligence' && "bg-accent font-medium"
+                    )}
+                  >
+                    <Brain className="h-4 w-4" />
+                    <span>Business Intelligence</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => navigate('/settings')}

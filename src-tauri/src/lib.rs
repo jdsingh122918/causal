@@ -30,6 +30,7 @@
 mod database;
 mod encryption;
 mod error;
+mod intelligence;
 mod logging;
 mod transcription;
 
@@ -39,6 +40,7 @@ pub mod test_utils;
 use database::Database;
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};
+use intelligence::commands::IntelligenceState;
 use logging::{MetricsCollector, MetricsSnapshot, LogEntry, LogFileInfo, LoggingStats};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -250,6 +252,7 @@ pub fn run() {
         log_dir: fallback_log_dir,
         metrics,
     });
+    let intelligence_state = Mutex::new(IntelligenceState::default());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -346,6 +349,7 @@ pub fn run() {
         .manage(AppState::default())
         .manage(database)
         .manage(logging_state)
+        .manage(intelligence_state)
         .invoke_handler(tauri::generate_handler![
             greet,
             transcription::list_audio_devices,
@@ -395,6 +399,15 @@ pub fn run() {
             clear_old_logs,
             clear_all_logs,
             get_debug_info,
+            // Intelligence system commands
+            intelligence::get_intelligence_config,
+            intelligence::set_intelligence_config,
+            intelligence::get_intelligence_status,
+            intelligence::initialize_intelligence_system,
+            intelligence::analyze_text_buffer,
+            intelligence::get_available_analysis_types,
+            intelligence::clear_intelligence_system,
+            intelligence::test_intelligence_connectivity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

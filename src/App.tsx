@@ -9,6 +9,7 @@ import { SettingsPanel } from "@/components/panels/SettingsPanel";
 import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
+import { IntelligenceDashboard } from "@/components/intelligence";
 
 function ProjectView() {
   const { currentProject } = useProjects();
@@ -56,6 +57,7 @@ function App() {
         <Routes>
           <Route path="/" element={<ProjectView />} />
           <Route path="/recordings/:recordingId" element={<RecordingDetailsPage />} />
+          <Route path="/intelligence" element={<IntelligenceDashboard />} />
           <Route path="/settings" element={<SettingsPanel />} />
           <Route path="/diagnostics" element={<DiagnosticsPanel />} />
         </Routes>

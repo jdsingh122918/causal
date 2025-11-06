@@ -30,7 +30,7 @@ pub fn get_intelligence_config(
     let state = intelligence_state.lock()
         .map_err(|e| format!("Lock error: {}", e))?;
 
-    debug!("🧠 Getting intelligence configuration");
+    // Remove verbose getter logging
     Ok(state.config.clone())
 }
 
@@ -74,7 +74,7 @@ pub fn get_intelligence_status(
     let state = intelligence_state.lock()
         .map_err(|e| format!("Lock error: {}", e))?;
 
-    debug!("🧠 Getting intelligence status");
+    // Remove verbose getter logging
 
     let status = serde_json::json!({
         "is_running": state.is_running,
@@ -239,7 +239,7 @@ pub async fn analyze_text_buffer(
 /// Get available analysis types
 #[tauri::command]
 pub fn get_available_analysis_types() -> Result<Vec<serde_json::Value>, String> {
-    debug!("🧠 Getting available analysis types");
+    // Remove verbose getter logging
 
     let types = vec![
         serde_json::json!({

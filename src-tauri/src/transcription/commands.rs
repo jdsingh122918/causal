@@ -265,7 +265,7 @@ pub async fn start_transcription(
                         let session_manager_clone = session_manager_enhanced.clone();
 
                         let worker_handle = tokio::spawn(async move {
-                            tracing::debug!("Enhancement worker {} started", worker_id);
+                            // Worker started - no individual logging needed
 
                             loop {
                                 // Lock the receiver and try to get the next buffer
@@ -280,13 +280,8 @@ pub async fn start_transcription(
 
                                         match agent_clone.enhance(buffer).await {
                                             Ok(enhanced) => {
-                                                let enhancement_duration = start_time.elapsed();
-                                                tracing::debug!(
-                                                    "Worker {} enhanced buffer {} in {:?}",
-                                                    worker_id,
-                                                    enhanced.buffer_id,
-                                                    enhancement_duration
-                                                );
+                                                let _enhancement_duration = start_time.elapsed();
+                                                // Buffer enhanced - skip per-buffer timing logs
 
                                                 // Track in session manager
                                                 if let Err(e) = session_manager_clone
@@ -319,8 +314,7 @@ pub async fn start_transcription(
                                         }
                                     }
                                     None => {
-                                        // Channel closed, exit worker
-                                        tracing::debug!("Enhancement worker {} completed (channel closed)", worker_id);
+                                        // Channel closed, exit worker silently
                                         break;
                                     }
                                 }

@@ -1,5 +1,7 @@
 use super::models::{Project, Recording, RecordingStatus};
+use crate::encryption::{EncryptedData, SettingsEncryption};
 use rusqlite::{params, Connection, Result as SqlResult};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -92,6 +94,19 @@ impl Database {
             [],
         )
         .map_err(|e| format!("Failed to create index: {}", e))?;
+
+        // Create secure_settings table for encrypted API keys and sensitive configuration
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS secure_settings (
+                key TEXT PRIMARY KEY,
+                encrypted_value BLOB NOT NULL,
+                salt BLOB NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| format!("Failed to create secure_settings table: {}", e))?;
 
         // Apply database performance optimizations
         // Note: Some PRAGMA statements return values, so we need to handle them properly
@@ -505,6 +520,170 @@ impl Database {
         }
 
         Ok(())
+    }
+
+    // Secure settings operations
+    pub async fn save_secure_setting(&self, key: &str, value: &str) -> Result<(), String> {
+        let encryption = SettingsEncryption::new()
+            .map_err(|e| format!("Failed to initialize encryption: {}", e))?;
+
+        let encrypted_data = encryption
+            .encrypt(value)
+            .map_err(|e| format!("Failed to encrypt value: {}", e))?;
+
+        let conn = self.connection.lock().await;
+        let now = Self::system_time_to_timestamp(SystemTime::now());
+
+        // Insert or update the secure setting
+        conn.execute(
+            "INSERT OR REPLACE INTO secure_settings (key, encrypted_value, salt, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            params![
+                key,
+                encrypted_data.encrypted_value,
+                encrypted_data.salt,
+                now
+            ],
+        )
+        .map_err(|e| format!("Failed to save secure setting: {}", e))?;
+
+        Ok(())
+    }
+
+    pub async fn load_secure_setting(&self, key: &str) -> Result<Option<String>, String> {
+        let encryption = SettingsEncryption::new()
+            .map_err(|e| format!("Failed to initialize encryption: {}", e))?;
+
+        let conn = self.connection.lock().await;
+
+        let result: Result<(Vec<u8>, Vec<u8>), rusqlite::Error> = conn.query_row(
+            "SELECT encrypted_value, salt FROM secure_settings WHERE key = ?1",
+            params![key],
+            |row| {
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                ))
+            },
+        );
+
+        match result {
+            Ok((encrypted_value, salt)) => {
+                let encrypted_data = EncryptedData {
+                    encrypted_value,
+                    salt,
+                };
+
+                let decrypted = encryption
+                    .decrypt(&encrypted_data)
+                    .map_err(|e| format!("Failed to decrypt value: {}", e))?;
+
+                Ok(Some(decrypted))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(format!("Database error: {}", e)),
+        }
+    }
+
+    pub async fn load_all_secure_settings(&self) -> Result<HashMap<String, String>, String> {
+        let encryption = SettingsEncryption::new()
+            .map_err(|e| format!("Failed to initialize encryption: {}", e))?;
+
+        let conn = self.connection.lock().await;
+
+        let mut stmt = conn
+            .prepare("SELECT key, encrypted_value, salt FROM secure_settings")
+            .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+        let settings = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                ))
+            })
+            .map_err(|e| format!("Failed to query secure settings: {}", e))?
+            .collect::<SqlResult<Vec<_>>>()
+            .map_err(|e| format!("Failed to collect secure settings: {}", e))?;
+
+        let mut decrypted_settings = HashMap::new();
+
+        for (key, encrypted_value, salt) in settings {
+            let encrypted_data = EncryptedData {
+                encrypted_value,
+                salt,
+            };
+
+            let decrypted = encryption
+                .decrypt(&encrypted_data)
+                .map_err(|e| format!("Failed to decrypt setting '{}': {}", key, e))?;
+
+            decrypted_settings.insert(key, decrypted);
+        }
+
+        Ok(decrypted_settings)
+    }
+
+    pub async fn delete_secure_setting(&self, key: &str) -> Result<bool, String> {
+        let conn = self.connection.lock().await;
+
+        let rows_affected = conn
+            .execute("DELETE FROM secure_settings WHERE key = ?1", params![key])
+            .map_err(|e| format!("Failed to delete secure setting: {}", e))?;
+
+        Ok(rows_affected > 0)
+    }
+
+    pub async fn clear_all_secure_settings(&self) -> Result<usize, String> {
+        let conn = self.connection.lock().await;
+
+        let rows_affected = conn
+            .execute("DELETE FROM secure_settings", [])
+            .map_err(|e| format!("Failed to clear secure settings: {}", e))?;
+
+        Ok(rows_affected)
+    }
+
+    pub async fn get_secure_settings_stats(&self) -> Result<super::secure_settings_commands::SecureSettingsStats, String> {
+        let conn = self.connection.lock().await;
+
+        let count: usize = conn
+            .query_row("SELECT COUNT(*) FROM secure_settings", [], |row| {
+                Ok(row.get::<_, usize>(0)?)
+            })
+            .unwrap_or(0);
+
+        let last_updated: Option<i64> = conn
+            .query_row(
+                "SELECT MAX(updated_at) FROM secure_settings",
+                [],
+                |row| Ok(row.get::<_, Option<i64>>(0)?),
+            )
+            .unwrap_or(None);
+
+        Ok(super::secure_settings_commands::SecureSettingsStats {
+            count,
+            last_updated,
+        })
+    }
+
+    pub async fn list_secure_setting_keys(&self) -> Result<Vec<String>, String> {
+        let conn = self.connection.lock().await;
+
+        let mut stmt = conn
+            .prepare("SELECT key FROM secure_settings ORDER BY key")
+            .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+        let keys = stmt
+            .query_map([], |row| {
+                Ok(row.get::<_, String>(0)?)
+            })
+            .map_err(|e| format!("Failed to query keys: {}", e))?
+            .collect::<SqlResult<Vec<_>>>()
+            .map_err(|e| format!("Failed to collect keys: {}", e))?;
+
+        Ok(keys)
     }
 
     // Utility methods

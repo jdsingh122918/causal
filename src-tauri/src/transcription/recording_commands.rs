@@ -13,10 +13,10 @@ pub async fn save_recording(
     logging_state: State<'_, Mutex<LoggingState>>,
     name: String,
     summary: Option<String>,
-    keyPoints: Vec<String>,
-    actionItems: Vec<String>,
-    claudeApiKey: Option<String>,
-    autoGenerateSummary: Option<bool>,
+    key_points: Vec<String>,
+    action_items: Vec<String>,
+    claude_api_key: Option<String>,
+    auto_generate_summary: Option<bool>,
 ) -> Result<Recording, String> {
     // Get current project ID
     let project_id = state
@@ -48,7 +48,7 @@ pub async fn save_recording(
 
     // Add summary if provided
     if let Some(summary_text) = summary {
-        recording = recording.with_summary(summary_text, keyPoints, actionItems);
+        recording = recording.with_summary(summary_text, key_points, action_items);
     }
 
     // Save to database
@@ -66,8 +66,8 @@ pub async fn save_recording(
 
     // Automatically generate summary if requested and API key is provided
     let final_recording = saved.clone();
-    if autoGenerateSummary.unwrap_or(false) {
-        if let Some(api_key) = claudeApiKey {
+    if auto_generate_summary.unwrap_or(false) {
+        if let Some(api_key) = claude_api_key {
             if !api_key.trim().is_empty() {
                 tracing::info!("Auto-generating summary for recording: {}", saved.id);
 

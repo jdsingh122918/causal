@@ -42,9 +42,11 @@
 
 pub mod commands;
 pub mod models;
+pub mod secure_settings_commands;
 mod serde_helpers;
 pub mod store;
 
 pub use commands::*;
 pub use models::{Project, Recording, RecordingMetadata};
+pub use secure_settings_commands::*;
 pub use store::Database;

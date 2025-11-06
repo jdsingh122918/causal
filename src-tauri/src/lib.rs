@@ -28,6 +28,7 @@
 //! components and starts the Tauri application loop.
 
 mod database;
+mod encryption;
 mod error;
 mod logging;
 mod transcription;
@@ -227,6 +228,16 @@ pub fn run() {
             database::export_recording,
             database::get_database_stats,
             database::generate_recording_summary,
+            // Secure settings commands
+            database::save_secure_setting,
+            database::load_secure_setting,
+            database::load_all_secure_settings,
+            database::save_secure_settings_batch,
+            database::delete_secure_setting,
+            database::clear_all_secure_settings,
+            database::get_secure_settings_stats,
+            database::secure_setting_exists,
+            database::list_secure_setting_keys,
             // Recording session commands
             transcription::save_recording,
             transcription::get_current_session,

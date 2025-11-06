@@ -1,15 +1,13 @@
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRecordings } from "@/contexts/RecordingsContext";
 import { RecordingCard } from "./RecordingCard";
 import { Recording } from "@/lib/types";
 import { Loader2, FolderOpen } from "lucide-react";
+import { RenameRecordingDialog } from "@/components/dialogs/RenameRecordingDialog";
 import { toast } from "sonner";
 import { ask } from "@tauri-apps/plugin-dialog";
-
-// Lazy load dialog that's only shown conditionally
-const RenameRecordingDialog = lazy(() => import("@/components/dialogs/RenameRecordingDialog"));
 
 export function RecordingHistory() {
   const { recordings, loading, deleteRecording } = useRecordings();
@@ -81,15 +79,11 @@ export function RecordingHistory() {
         </ScrollArea>
       </Card>
 
-      {renameRecording && (
-        <Suspense fallback={null}>
-          <RenameRecordingDialog
-            recording={renameRecording}
-            open={!!renameRecording}
-            onOpenChange={(open) => !open && setRenameRecording(null)}
-          />
-        </Suspense>
-      )}
+      <RenameRecordingDialog
+        recording={renameRecording}
+        open={!!renameRecording}
+        onOpenChange={(open) => !open && setRenameRecording(null)}
+      />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Popover,
   PopoverContent,
@@ -11,9 +12,10 @@ import {
 } from "@/components/ui/popover";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { invoke } from "@tauri-apps/api/core";
-import { Download, RefreshCw, Trash2, Filter, Bug } from "lucide-react";
+import { Download, RefreshCw, Trash2, Filter, Bug, Info } from "lucide-react";
 import { toast } from "sonner";
 import { save } from "@tauri-apps/plugin-dialog";
+import { DebugInfo } from "@/components/debug/DebugInfo";
 
 interface LogEntry {
   timestamp: string;
@@ -142,14 +144,27 @@ export function DiagnosticsPanel() {
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Bug className="h-8 w-8 text-primary" />
-          Diagnostics & Logs
+          Diagnostics & Debug Info
         </h1>
         <p className="text-muted-foreground">
-          View application logs and diagnostic information
+          View application logs and detailed debug information for troubleshooting
         </p>
       </div>
 
-      <Card className="h-[calc(100vh-200px)]">
+      <Tabs defaultValue="logs" className="h-[calc(100vh-200px)]">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="logs" className="flex items-center gap-2">
+            <Bug className="h-4 w-4" />
+            Application Logs
+          </TabsTrigger>
+          <TabsTrigger value="debug" className="flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            Debug Information
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="logs" className="h-full mt-4">
+          <Card className="h-full">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -262,7 +277,13 @@ export function DiagnosticsPanel() {
             </div>
           </ScrollArea>
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="debug" className="h-full mt-4">
+          <DebugInfo />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

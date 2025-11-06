@@ -134,6 +134,34 @@ fn clear_all_logs(logging_state: State<Mutex<LoggingState>>) -> Result<String, S
     logging::commands::clear_all_logs(&state.log_dir)
 }
 
+#[tauri::command]
+fn get_debug_info(logging_state: State<Mutex<LoggingState>>) -> Result<serde_json::Value, String> {
+    let state = logging_state.lock().map_err(|e| format!("Lock error: {}", e))?;
+
+    tracing::info!("🔍 Debug info requested from frontend");
+
+    let debug_info = serde_json::json!({
+        "platform": {
+            "os": std::env::consts::OS,
+            "arch": std::env::consts::ARCH,
+            "family": std::env::consts::FAMILY,
+        },
+        "application": {
+            "name": env!("CARGO_PKG_NAME"),
+            "version": env!("CARGO_PKG_VERSION"),
+        },
+        "log_directory": state.log_dir.display().to_string(),
+        "environment": {
+            "rust_log": std::env::var("RUST_LOG").ok(),
+            "os_env": std::env::var("OS").ok(),
+            "webview2_dir": std::env::var("WEBVIEW2_USER_DATA_FOLDER").ok(),
+        },
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    });
+
+    Ok(debug_info)
+}
+
 /// Main entry point for the Causal desktop application.
 ///
 /// This function initializes all core components and starts the Tauri application:
@@ -169,7 +197,41 @@ pub fn run() {
         std::process::exit(1);
     }
 
-    tracing::info!("Causal application starting");
+    tracing::info!("🚀 Causal application starting");
+
+    // Log comprehensive platform and environment information
+    tracing::info!("🖥️ Platform information: os={} arch={} family={}",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        std::env::consts::FAMILY
+    );
+
+    // Log Cargo package information
+    tracing::info!("📦 Application version: {} ({})",
+        env!("CARGO_PKG_VERSION"),
+        env!("CARGO_PKG_NAME")
+    );
+
+    // Log environment variables that might affect behavior
+    if let Ok(rust_log) = std::env::var("RUST_LOG") {
+        tracing::info!("🔍 RUST_LOG environment: {}", rust_log);
+    }
+
+    // Windows-specific debugging
+    #[cfg(target_os = "windows")]
+    {
+        tracing::info!("🪟 Windows-specific initialization starting");
+
+        // Check for Windows version information
+        if let Ok(winver) = std::env::var("OS") {
+            tracing::info!("🪟 Windows OS environment: {}", winver);
+        }
+
+        // Check for potential WebView2 related environment
+        if let Ok(webview2_dir) = std::env::var("WEBVIEW2_USER_DATA_FOLDER") {
+            tracing::info!("🌐 WebView2 user data folder: {}", webview2_dir);
+        }
+    }
 
     let database = match Database::new() {
         Ok(db) => db,
@@ -192,14 +254,90 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            tracing::info!("🚀 Tauri application setup starting");
+
             // Log the actual Tauri-provided log directory for reference
             if let Ok(tauri_log_dir) = app.path().app_log_dir() {
                 tracing::info!(
                     tauri_log_dir = %tauri_log_dir.display(),
                     "Tauri log directory available"
                 );
+
+                // Also log to stderr for Windows debugging
+                eprintln!("📁 Log files location: {}", tauri_log_dir.display());
             }
 
+            // Get the main window handle for debugging
+            if let Some(window) = app.get_webview_window("main") {
+                tracing::info!("🪟 Main window found, setting up event listeners");
+
+                // Window event logging
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    match event {
+                        tauri::WindowEvent::Resized(size) => {
+                            tracing::info!("🪟 Window resized: {}x{}", size.width, size.height);
+                        }
+                        tauri::WindowEvent::Moved(position) => {
+                            tracing::info!("🪟 Window moved: ({}, {})", position.x, position.y);
+                        }
+                        tauri::WindowEvent::CloseRequested { .. } => {
+                            tracing::info!("🪟 Window close requested");
+                        }
+                        tauri::WindowEvent::Destroyed => {
+                            tracing::info!("🪟 Window destroyed");
+                        }
+                        tauri::WindowEvent::Focused(focused) => {
+                            tracing::info!("🪟 Window focus changed: {}", focused);
+                        }
+                        tauri::WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size, .. } => {
+                            tracing::info!(
+                                "🪟 Scale factor changed: {} (new size: {}x{})",
+                                scale_factor,
+                                new_inner_size.width,
+                                new_inner_size.height
+                            );
+                        }
+                        tauri::WindowEvent::ThemeChanged(theme) => {
+                            tracing::info!("🪟 Theme changed: {:?}", theme);
+                        }
+                        _ => {
+                            tracing::debug!("🪟 Other window event: {:?}", event);
+                        }
+                    }
+                });
+
+                // Log current window state
+                if let Ok(size) = window_clone.inner_size() {
+                    tracing::info!("🪟 Initial window size: {}x{}", size.width, size.height);
+                }
+                if let Ok(position) = window_clone.outer_position() {
+                    tracing::info!("🪟 Initial window position: ({}, {})", position.x, position.y);
+                }
+                if let Ok(is_visible) = window_clone.is_visible() {
+                    tracing::info!("🪟 Window visible: {}", is_visible);
+                }
+                if let Ok(is_focused) = window_clone.is_focused() {
+                    tracing::info!("🪟 Window focused: {}", is_focused);
+                }
+
+                // Webview-specific debugging for Windows
+                #[cfg(target_os = "windows")]
+                {
+                    tracing::info!("🪟 Windows-specific: Checking webview state...");
+
+                    // Try to get webview URL to ensure it's loading
+                    if let Ok(url) = window_clone.url() {
+                        tracing::info!("🌐 Webview URL: {}", url);
+                    } else {
+                        tracing::warn!("🌐 Failed to get webview URL");
+                    }
+                }
+            } else {
+                tracing::error!("❌ Main window not found during setup!");
+            }
+
+            tracing::info!("✅ Tauri application setup completed successfully");
             Ok(())
         })
         .manage(AppState::default())
@@ -253,6 +391,7 @@ pub fn run() {
             export_logs,
             clear_old_logs,
             clear_all_logs,
+            get_debug_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

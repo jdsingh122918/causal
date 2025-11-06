@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Recording, TranscriptSummary } from "@/lib/types";
+import { Recording, TranscriptSummary, Project } from "@/lib/types";
 import { useProjects } from "./ProjectsContext";
 import { useSettings } from "./SettingsContext";
 import { useRecordingEvents } from "@/hooks/use-realtime-events";
@@ -38,7 +38,7 @@ export function RecordingsProvider({
   );
   const [loading, setLoading] = useState(false);
   const [optimisticOperations, setOptimisticOperations] = useState<Map<string, Recording>>(new Map());
-  const { currentProject } = useProjects();
+  const { currentProject, refreshCurrentProject } = useProjects();
   const { claudeApiKey } = useSettings();
 
   // Real-time event handlers
@@ -186,7 +186,131 @@ export function RecordingsProvider({
   }, [currentProject]);
 
   const saveRecording = async (name: string, _transcript: string) => {
+    console.log("🔍 SaveRecording Debug Info:", {
+      currentProject,
+      currentProjectId: currentProject?.id,
+      currentProjectName: currentProject?.name,
+      recordingName: name,
+      transcriptLength: _transcript.length,
+      timestamp: new Date().toISOString()
+    });
+
     if (!currentProject) {
+      console.warn("🔄 currentProject is null, attempting to refresh...");
+
+      // First try to refresh the current project in the context
+      try {
+        await refreshCurrentProject();
+
+        // After refresh, try to get the updated project directly from backend
+        const refreshedProject = await invoke<Project | null>("get_current_project");
+        if (refreshedProject) {
+          console.log("✅ Project refresh successful, using refreshed project for save");
+
+          // Use the refreshed project directly for this operation
+          const optimisticId = `temp-${Date.now()}`;
+          const optimisticRecording: Recording = {
+            id: optimisticId,
+            project_id: refreshedProject.id,
+            name,
+            raw_transcript: _transcript,
+            enhanced_transcript: "",
+            summary: null,
+            key_points: [],
+            claude_api_key: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          setOptimisticOperations(prev => new Map(prev.set(optimisticId, optimisticRecording)));
+          setRecordings(prev => [optimisticRecording, ...prev]);
+
+          try {
+            await tauri.saveRecording(refreshedProject.id, {
+              name,
+              transcript: _transcript,
+            });
+            console.log("✅ Recording saved successfully with refreshed project");
+            return;
+          } catch (error) {
+            console.error("❌ Failed to save with refreshed project:", error);
+            // Revert optimistic update on error
+            setOptimisticOperations(prev => {
+              const next = new Map(prev);
+              next.delete(optimisticId);
+              return next;
+            });
+            setRecordings(prev => prev.filter(r => r.id !== optimisticId));
+            throw error;
+          } finally {
+            // Clean up optimistic operation
+            setOptimisticOperations(prev => {
+              const next = new Map(prev);
+              next.delete(optimisticId);
+              return next;
+            });
+          }
+        }
+      } catch (refreshError) {
+        console.warn("⚠️ Failed to refresh current project:", refreshError);
+      }
+
+      // Additional debugging - try to fetch current project directly
+      try {
+        const backendProject = await invoke<Project | null>("get_current_project");
+        console.error("🚨 Frontend currentProject is null but backend has:", backendProject);
+
+        if (backendProject) {
+          console.log("🔧 Using backend project for save operation");
+          // Use the backend project for this operation
+          const optimisticId = `temp-${Date.now()}`;
+          const optimisticRecording: Recording = {
+            id: optimisticId,
+            project_id: backendProject.id,
+            name,
+            raw_transcript: _transcript,
+            enhanced_transcript: "",
+            summary: null,
+            key_points: [],
+            claude_api_key: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          // Perform the save operation with backend project
+          setOptimisticOperations(prev => new Map(prev.set(optimisticId, optimisticRecording)));
+          setRecordings(prev => [optimisticRecording, ...prev]);
+
+          try {
+            await tauri.saveRecording(backendProject.id, {
+              name,
+              transcript: _transcript,
+            });
+            console.log("✅ Recording saved successfully with backend project");
+            return;
+          } catch (error) {
+            console.error("❌ Failed to save with backend project:", error);
+            // Revert optimistic update on error
+            setOptimisticOperations(prev => {
+              const next = new Map(prev);
+              next.delete(optimisticId);
+              return next;
+            });
+            setRecordings(prev => prev.filter(r => r.id !== optimisticId));
+            throw error;
+          } finally {
+            // Clean up optimistic operation
+            setOptimisticOperations(prev => {
+              const next = new Map(prev);
+              next.delete(optimisticId);
+              return next;
+            });
+          }
+        }
+      } catch (backendError) {
+        console.error("🚨 Backend also has no current project:", backendError);
+      }
+
       throw new Error("No project selected");
     }
 

@@ -13,6 +13,7 @@ interface ProjectsContextType {
   loadProjects: () => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
+  refreshCurrentProject: () => Promise<void>;
 }
 
 const ProjectsContext = createContext<ProjectsContextType | null>(null);
@@ -215,6 +216,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshCurrentProject = async () => {
+    try {
+      const currentProject = await tauri.getCurrentProject();
+      setCurrentProject(currentProject);
+      console.log("🔄 Current project refreshed:", currentProject?.name || "None");
+    } catch (error) {
+      console.debug("No current project set during refresh:", error);
+      setCurrentProject(null);
+    }
+  };
+
   // Combine real projects with optimistic operations for display
   const displayProjects = [
     ...projects,
@@ -233,6 +245,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         loadProjects,
         deleteProject,
         refreshProjects,
+        refreshCurrentProject,
       }}
     >
       {children}

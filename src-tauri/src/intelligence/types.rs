@@ -43,7 +43,7 @@ pub struct FinancialAnalysis {
     pub outlook: Option<String>,      // "bullish", "bearish", "neutral"
 }
 
-/// Competitive intelligence analysis
+/// Competitive intelligence analysis with financial analyst insights
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompetitiveAnalysis {
     pub competitors_mentioned: Vec<String>, // ["Apple", "Google", "Microsoft"]
@@ -51,6 +51,13 @@ pub struct CompetitiveAnalysis {
     pub market_share_mentions: Vec<String>, // References to market share
     pub competitive_advantages: Vec<String>, // Claimed advantages over competitors
     pub threats_identified: Vec<String>,   // Competitive threats mentioned
+
+    // Enhanced financial analyst insights
+    pub industry_impact: Option<String>,   // How developments affect the broader industry
+    pub company_effects: Vec<String>,      // Specific implications for mentioned companies
+    pub strategic_questions: Vec<String>,  // Insightful follow-up questions for analysts
+    pub competitive_moats: Vec<String>,    // Identified competitive advantages/barriers
+    pub market_dynamics: Option<String>,   // Overall competitive landscape assessment
 }
 
 /// Summary and key insights
@@ -63,13 +70,52 @@ pub struct SummaryAnalysis {
     pub follow_up_required: Vec<String>, // Items requiring follow-up
 }
 
-/// Risk analysis
+/// Promise or commitment identified in content
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromiseCommitment {
+    pub promise_text: String,         // The actual promise/commitment made
+    pub promise_type: String,         // "delivery", "timeline", "financial", "operational", "quality"
+    pub specificity: String,          // "specific", "vague", "conditional"
+    pub timeline: Option<String>,     // Expected timeline if mentioned
+    pub stakeholder: Option<String>,  // Who made the promise (if identifiable)
+}
+
+/// Delivery risk assessment for a specific promise or area
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryRisk {
+    pub risk_area: String,            // Area of risk (e.g., specific promise or operational area)
+    pub risk_category: String,        // "technical", "operational", "financial", "market", "regulatory", "resource"
+    pub severity: String,             // "low", "medium", "high", "critical"
+    pub likelihood: String,           // "unlikely", "possible", "likely", "very_likely"
+    pub risk_factors: Vec<String>,    // Specific factors contributing to risk
+    pub potential_impact: String,     // Description of potential impact if risk materializes
+    pub mitigation_notes: Option<String>, // Existing mitigation strategies mentioned
+}
+
+/// Risk analysis with focus on promises and delivery risks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RiskAnalysis {
-    pub risks_identified: Vec<String>, // Identified business risks
-    pub risk_level: String,           // "low", "medium", "high"
-    pub mitigation_strategies: Vec<String>, // Mentioned mitigation approaches
-    pub regulatory_concerns: Vec<String>, // Regulatory or compliance risks
+    // Overall risk assessment
+    pub overall_risk_level: String,   // "low", "medium", "high", "critical"
+    pub risk_summary: String,         // Brief summary of key risk concerns
+
+    // Promise detection and analysis
+    pub promises_identified: Vec<PromiseCommitment>, // Explicit and implicit promises detected
+    pub promise_clarity_score: f32,   // 0.0-1.0: How clear and specific the promises are
+
+    // Delivery risk assessment
+    pub delivery_risks: Vec<DeliveryRisk>, // Specific delivery risks identified
+    pub critical_risks: Vec<String>,  // Top critical risks requiring immediate attention
+
+    // Traditional risk categories (maintained for compatibility)
+    pub operational_risks: Vec<String>, // Day-to-day operational risks
+    pub financial_risks: Vec<String>,   // Financial and resource risks
+    pub market_risks: Vec<String>,      // Market and competitive risks
+    pub regulatory_risks: Vec<String>,  // Compliance and regulatory risks
+
+    // Mitigation and recommendations
+    pub existing_mitigations: Vec<String>, // Mitigation strategies mentioned
+    pub recommended_actions: Vec<String>,  // Additional recommended risk mitigation actions
 }
 
 /// Comprehensive intelligence result from a single agent

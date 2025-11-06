@@ -20,24 +20,41 @@ impl CompetitiveAgent {
         }
     }
 
-    /// Build the competitive analysis prompt
+    /// Build the competitive analysis prompt with financial analyst expertise
     fn build_competitive_prompt(text: &str) -> String {
         format!(
-            r#"You are a competitive intelligence expert specializing in earnings calls and business communications. Analyze the following transcript segment for competitive mentions, market positioning, and strategic insights.
+            r#"You are a senior financial industry analyst with 15+ years of experience analyzing competitive dynamics in earnings calls, investor presentations, and business communications. Your expertise spans:
+
+- Industry sector analysis and competitive positioning
+- Company-specific competitive advantages and moats
+- Market dynamics and structural changes
+- Strategic implications for competitors and the broader industry
+- Risk-reward assessment in competitive contexts
+
+Analyze the following transcript segment as a professional financial analyst would, extracting competitive intelligence and generating actionable insights.
 
 CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON - no explanations, no preamble, no markdown
 2. Use the EXACT format specified below
-3. Extract company/competitor names accurately
-4. Identify competitive positioning statements
-5. Look for market share, competitive advantages, and threats
+3. Think like a buy-side or sell-side equity analyst
+4. Generate insightful follow-up questions that a senior analyst would ask
+5. Assess broader industry implications, not just company-specific details
 
-Analyze for:
+ANALYSIS FRAMEWORK:
+
+**Competitive Intelligence (Basic)**
 - Competitors mentioned by name (companies, products, services)
 - Competitive positioning statements
-- Market share references
+- Market share references and rankings
 - Claimed competitive advantages
-- Identified competitive threats or challenges
+- Identified competitive threats
+
+**Financial Analyst Insights (Advanced)**
+- Industry Impact: How do these developments affect the broader industry/sector?
+- Company Effects: What are the specific implications for each mentioned competitor?
+- Strategic Questions: What follow-up questions would you ask management or in your research?
+- Competitive Moats: What sustainable competitive advantages or barriers to entry are evident?
+- Market Dynamics: What is the overall competitive landscape and how is it evolving?
 
 Text to analyze:
 {text}
@@ -48,22 +65,52 @@ Required JSON format:
   "competitive_positioning": "We differentiate through superior customer service and innovation",
   "market_share_mentions": ["leading market position", "gained 3% market share"],
   "competitive_advantages": ["proprietary technology", "exclusive partnerships", "cost leadership"],
-  "threats_identified": ["increased competition in mobile", "new entrant in cloud services"]
+  "threats_identified": ["increased competition in mobile", "new entrant in cloud services"],
+  "industry_impact": "Increasing commoditization in the smartphone market may compress margins across all players",
+  "company_effects": [
+    "Apple: Potential margin pressure from competition, but strong ecosystem lock-in provides defense",
+    "Google: Search dominance creates cross-selling opportunities in cloud",
+    "Microsoft: Enterprise focus insulates from consumer market volatility"
+  ],
+  "strategic_questions": [
+    "What specific metrics define 'market leadership' - units, revenue, or profit share?",
+    "How sustainable is the claimed cost advantage given rising input costs?",
+    "What is the company's strategy if the new cloud competitor gains enterprise traction?"
+  ],
+  "competitive_moats": [
+    "Network effects from 500M+ user platform",
+    "Proprietary AI algorithms with 10-year development lead",
+    "High switching costs due to enterprise integration depth"
+  ],
+  "market_dynamics": "Market transitioning from hardware-centric to services-driven model, favoring companies with strong recurring revenue and ecosystem lock-in"
 }}
 
 Rules:
-- competitors_mentioned: List company/brand names mentioned as competitors
-- competitive_positioning: Single string summarizing how company positions vs competitors (or null)
-- market_share_mentions: List phrases about market share, position, or ranking
+- competitors_mentioned: List company/brand names mentioned as competitors or relevant players
+- competitive_positioning: Single string summarizing how company positions vs competitors (or null if not discussed)
+- market_share_mentions: List specific phrases about market share, position, or ranking
 - competitive_advantages: List claimed advantages or differentiators
 - threats_identified: List competitive threats or challenges mentioned
+
+**Enhanced Financial Analyst Fields:**
+- industry_impact: 1-2 sentence assessment of how these developments affect the broader industry/sector (or null)
+- company_effects: List of specific implications for each mentioned competitor (company name + implication)
+- strategic_questions: 2-5 insightful follow-up questions a financial analyst would ask (focus on clarifying competitive dynamics, sustainability, quantification)
+- competitive_moats: Identified sustainable competitive advantages, barriers to entry, or economic moats
+- market_dynamics: 1-2 sentence assessment of overall competitive landscape and evolution (or null)
+
+QUALITY STANDARDS:
+- Strategic questions should be specific, not generic
+- Company effects should name the company and state the implication
+- Industry impact should consider structural changes, not just cyclical trends
+- Competitive moats should be sustainable advantages, not temporary ones
 
 JSON response:"#,
             text = text
         )
     }
 
-    /// Parse competitive analysis response from API
+    /// Parse competitive analysis response from API with enhanced financial analyst fields
     fn parse_competitive_response(response: &str) -> Result<CompetitiveAnalysis, String> {
         // Clean the response - remove any markdown formatting
         let cleaned = response
@@ -137,12 +184,77 @@ JSON response:"#,
             })
             .unwrap_or_default();
 
+        // Extract enhanced financial analyst fields
+
+        // Extract industry impact
+        let industry_impact = parsed
+            .get("industry_impact")
+            .and_then(|v| {
+                if v.is_null() {
+                    None
+                } else {
+                    v.as_str().map(|s| s.to_string())
+                }
+            });
+
+        // Extract company effects
+        let company_effects = parsed
+            .get("company_effects")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Extract strategic questions
+        let strategic_questions = parsed
+            .get("strategic_questions")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Extract competitive moats
+        let competitive_moats = parsed
+            .get("competitive_moats")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Extract market dynamics
+        let market_dynamics = parsed
+            .get("market_dynamics")
+            .and_then(|v| {
+                if v.is_null() {
+                    None
+                } else {
+                    v.as_str().map(|s| s.to_string())
+                }
+            });
+
         Ok(CompetitiveAnalysis {
             competitors_mentioned,
             competitive_positioning,
             market_share_mentions,
             competitive_advantages,
             threats_identified,
+            industry_impact,
+            company_effects,
+            strategic_questions,
+            competitive_moats,
+            market_dynamics,
         })
     }
 }
@@ -208,11 +320,13 @@ impl IntelligenceAgent for CompetitiveAgent {
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
 
         tracing::debug!(
-            "🏆 Competitive analysis complete for buffer {} ({}ms): {} competitors, {} advantages",
+            "🏆 Competitive analysis complete for buffer {} ({}ms): {} competitors, {} advantages, {} questions, {} moats",
             buffer.turn_order,
             processing_time_ms,
             competitive_analysis.competitors_mentioned.len(),
-            competitive_analysis.competitive_advantages.len()
+            competitive_analysis.competitive_advantages.len(),
+            competitive_analysis.strategic_questions.len(),
+            competitive_analysis.competitive_moats.len()
         );
 
         Ok(IntelligenceResult {
@@ -258,7 +372,12 @@ mod tests {
             "competitive_positioning": "We lead through innovation",
             "market_share_mentions": ["market leader", "gained 5% share"],
             "competitive_advantages": ["proprietary tech", "cost leadership"],
-            "threats_identified": ["new entrants", "price competition"]
+            "threats_identified": ["new entrants", "price competition"],
+            "industry_impact": "Market consolidation expected",
+            "company_effects": ["Apple: Margin pressure", "Google: Market share gain"],
+            "strategic_questions": ["How sustainable is growth?", "What are the barriers?"],
+            "competitive_moats": ["Network effects", "Brand loyalty"],
+            "market_dynamics": "Shifting to subscription model"
         }"#;
 
         let result = CompetitiveAgent::parse_competitive_response(response).unwrap();
@@ -267,6 +386,11 @@ mod tests {
         assert_eq!(result.market_share_mentions.len(), 2);
         assert_eq!(result.competitive_advantages.len(), 2);
         assert_eq!(result.threats_identified.len(), 2);
+        assert_eq!(result.industry_impact, Some("Market consolidation expected".to_string()));
+        assert_eq!(result.company_effects.len(), 2);
+        assert_eq!(result.strategic_questions.len(), 2);
+        assert_eq!(result.competitive_moats.len(), 2);
+        assert_eq!(result.market_dynamics, Some("Shifting to subscription model".to_string()));
     }
 
     #[test]
@@ -276,12 +400,19 @@ mod tests {
             "competitive_positioning": null,
             "market_share_mentions": [],
             "competitive_advantages": [],
-            "threats_identified": []
+            "threats_identified": [],
+            "industry_impact": null,
+            "company_effects": [],
+            "strategic_questions": [],
+            "competitive_moats": [],
+            "market_dynamics": null
         }"#;
 
         let result = CompetitiveAgent::parse_competitive_response(response).unwrap();
         assert!(result.competitive_positioning.is_none());
         assert!(result.competitors_mentioned.is_empty());
+        assert!(result.industry_impact.is_none());
+        assert!(result.market_dynamics.is_none());
     }
 
     #[test]
@@ -292,13 +423,19 @@ mod tests {
   "competitive_positioning": "Superior customer service",
   "market_share_mentions": ["market position"],
   "competitive_advantages": ["innovation"],
-  "threats_identified": ["competition"]
+  "threats_identified": ["competition"],
+  "industry_impact": "Cloud migration accelerating",
+  "company_effects": ["Microsoft: Enterprise dominance"],
+  "strategic_questions": ["What is Azure growth rate?"],
+  "competitive_moats": ["Enterprise relationships"],
+  "market_dynamics": "Hybrid cloud adoption"
 }
 ```"#;
 
         let result = CompetitiveAgent::parse_competitive_response(response).unwrap();
         assert_eq!(result.competitors_mentioned[0], "Microsoft");
         assert_eq!(result.competitive_positioning, Some("Superior customer service".to_string()));
+        assert_eq!(result.industry_impact, Some("Cloud migration accelerating".to_string()));
     }
 
     #[test]
@@ -308,7 +445,12 @@ mod tests {
             "competitive_positioning": "No specific positioning",
             "market_share_mentions": [],
             "competitive_advantages": [],
-            "threats_identified": []
+            "threats_identified": [],
+            "industry_impact": null,
+            "company_effects": [],
+            "strategic_questions": [],
+            "competitive_moats": [],
+            "market_dynamics": null
         }"#;
 
         let result = CompetitiveAgent::parse_competitive_response(response).unwrap();
@@ -316,5 +458,8 @@ mod tests {
         assert!(result.market_share_mentions.is_empty());
         assert!(result.competitive_advantages.is_empty());
         assert!(result.threats_identified.is_empty());
+        assert!(result.company_effects.is_empty());
+        assert!(result.strategic_questions.is_empty());
+        assert!(result.competitive_moats.is_empty());
     }
 }

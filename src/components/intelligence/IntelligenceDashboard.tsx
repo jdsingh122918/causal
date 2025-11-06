@@ -367,9 +367,13 @@ function IntelligenceResults({ result }: IntelligenceResultsProps) {
 
               {analysisResult.risk && (
                 <div>
-                  <p><strong>Risk Level:</strong> {analysisResult.risk.risk_level}</p>
-                  {analysisResult.risk.risks_identified.length > 0 && (
-                    <p><strong>Risks:</strong> {analysisResult.risk.risks_identified.join(", ")}</p>
+                  <p><strong>Risk Level:</strong> {analysisResult.risk.overall_risk_level}</p>
+                  <p><strong>Summary:</strong> {analysisResult.risk.risk_summary}</p>
+                  {analysisResult.risk.promises_identified.length > 0 && (
+                    <p><strong>Promises:</strong> {analysisResult.risk.promises_identified.length} detected</p>
+                  )}
+                  {analysisResult.risk.critical_risks.length > 0 && (
+                    <p><strong>Critical Risks:</strong> {analysisResult.risk.critical_risks.join(", ")}</p>
                   )}
                 </div>
               )}

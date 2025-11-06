@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { useSettings } from "./SettingsContext";
 
 // Intelligence types (matching Rust backend)
 export interface SentimentAnalysis {
@@ -24,6 +25,12 @@ export interface CompetitiveAnalysis {
   market_share_mentions: string[];
   competitive_advantages: string[];
   threats_identified: string[];
+  // Enhanced financial analyst insights
+  industry_impact?: string;
+  company_effects: string[];
+  strategic_questions: string[];
+  competitive_moats: string[];
+  market_dynamics?: string;
 }
 
 export interface SummaryAnalysis {
@@ -34,11 +41,46 @@ export interface SummaryAnalysis {
   follow_up_required: string[];
 }
 
+export interface PromiseCommitment {
+  promise_text: string;
+  promise_type: string;
+  specificity: string;
+  timeline?: string;
+  stakeholder?: string;
+}
+
+export interface DeliveryRisk {
+  risk_area: string;
+  risk_category: string;
+  severity: string;
+  likelihood: string;
+  risk_factors: string[];
+  potential_impact: string;
+  mitigation_notes?: string;
+}
+
 export interface RiskAnalysis {
-  risks_identified: string[];
-  risk_level: string;
-  mitigation_strategies: string[];
-  regulatory_concerns: string[];
+  // Overall risk assessment
+  overall_risk_level: string;
+  risk_summary: string;
+
+  // Promise detection and analysis
+  promises_identified: PromiseCommitment[];
+  promise_clarity_score: number;
+
+  // Delivery risk assessment
+  delivery_risks: DeliveryRisk[];
+  critical_risks: string[];
+
+  // Traditional risk categories
+  operational_risks: string[];
+  financial_risks: string[];
+  market_risks: string[];
+  regulatory_risks: string[];
+
+  // Mitigation and recommendations
+  existing_mitigations: string[];
+  recommended_actions: string[];
 }
 
 export type AnalysisType = "Sentiment" | "Financial" | "Competitive" | "Summary" | "Risk";
@@ -138,6 +180,7 @@ const defaultConfig: IntelligenceConfig = {
 const IntelligenceContext = createContext<IntelligenceContextType | undefined>(undefined);
 
 export function IntelligenceProvider({ children }: { children: React.ReactNode }) {
+  const { claudeApiKey } = useSettings();
   const [state, setState] = useState<IntelligenceState>({
     config: defaultConfig,
     isInitialized: false,
@@ -232,6 +275,59 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       }
     };
   }, []);
+
+  // Update config with API key from settings and auto-initialize
+  useEffect(() => {
+    const updateApiKeyAndInitialize = async () => {
+      if (!claudeApiKey) {
+        console.log("🧠 [Intelligence] No Claude API key available, skipping initialization");
+        return;
+      }
+
+      // Update config with API key from settings if it's different
+      if (state.config.api_key !== claudeApiKey) {
+        console.log("🧠 [Intelligence] Updating API key from settings");
+        setState(prev => ({
+          ...prev,
+          config: { ...prev.config, api_key: claudeApiKey }
+        }));
+
+        try {
+          // Update the backend config with the new API key
+          const newConfig = { ...state.config, api_key: claudeApiKey };
+          await invoke("set_intelligence_config", { config: newConfig });
+        } catch (error) {
+          console.error("Failed to update intelligence config with API key:", error);
+        }
+      }
+
+      // Auto-initialize if we have an API key but system is not initialized
+      if (claudeApiKey && !state.isInitialized && !state.isProcessing) {
+        console.log("🧠 [Intelligence] Auto-initializing system with API key");
+        try {
+          setState(prev => ({ ...prev, isProcessing: true }));
+          await invoke("initialize_intelligence_system");
+          setState(prev => ({ ...prev, isInitialized: true }));
+
+          // Refresh status after initialization
+          try {
+            const status = await invoke<IntelligenceState["systemStatus"]>("get_intelligence_status");
+            setState(prev => ({ ...prev, systemStatus: status }));
+          } catch (statusError) {
+            console.error("Failed to refresh intelligence status after initialization:", statusError);
+          }
+
+          console.log("🧠 [Intelligence] System initialized successfully");
+        } catch (error) {
+          console.error("Failed to auto-initialize intelligence system:", error);
+        } finally {
+          setState(prev => ({ ...prev, isProcessing: false }));
+        }
+      }
+    };
+
+    updateApiKeyAndInitialize();
+  }, [claudeApiKey, state.config.api_key, state.isInitialized, state.isProcessing]);
 
   const updateConfig = useCallback(async (configUpdate: Partial<IntelligenceConfig>) => {
     const newConfig = { ...state.config, ...configUpdate };
@@ -328,6 +424,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const clearResults = useCallback(() => {
+    console.log("🧠 [Intelligence] Clearing all intelligence results");
     setState(prev => ({
       ...prev,
       latestResults: new Map(),

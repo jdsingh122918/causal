@@ -33,6 +33,9 @@ mod error;
 mod logging;
 mod transcription;
 
+#[cfg(test)]
+pub mod test_utils;
+
 use database::Database;
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};

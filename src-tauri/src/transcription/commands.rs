@@ -135,7 +135,7 @@ pub async fn start_transcription(
     let client = AssemblyAIClient::new(api_key);
 
     // Create channels for buffering and enhancement
-    let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel::<TranscriptionBuffer>();
+    let (buffer_tx, buffer_rx) = mpsc::unbounded_channel::<TranscriptionBuffer>();
 
     // Spawn task to handle transcription
     let app_clone = app.clone();
@@ -241,42 +241,105 @@ pub async fn start_transcription(
             buffer_manager.flush_all();
         });
 
-        // Handle enhancement if Claude API key provided
+        // Handle enhancement with parallel worker pool for improved performance
         let enhancement_handle = if enhancement_enabled {
             if let Some(claude_key) = claude_api_key {
                 let app_for_enhanced = app_clone.clone();
-                let agent = EnhancementAgent::new(claude_key);
+                let agent = Arc::new(EnhancementAgent::new(claude_key));
+
+                // Configuration: Number of concurrent enhancement workers
+                // Optimized for 4 parallel requests - balances performance vs API rate limits
+                const WORKER_COUNT: usize = 4;
+                tracing::info!("Configuring enhancement worker pool with {} workers", WORKER_COUNT);
 
                 Some(tokio::spawn(async move {
-                    while let Some(buffer) = buffer_rx.recv().await {
-                        match agent.enhance(buffer).await {
-                            Ok(enhanced) => {
-                                // Track in session manager
-                                if let Err(e) = session_manager_enhanced
-                                    .add_enhanced_buffer(
-                                        enhanced.buffer_id as usize,
-                                        enhanced.raw_text.clone(),
-                                        enhanced.enhanced_text.clone(),
-                                    )
-                                    .await
-                                {
-                                    tracing::error!(
-                                        "Failed to track enhanced buffer in session: {}",
-                                        e
-                                    );
-                                }
+                    // Wrap the receiver in Arc<Mutex> for shared access across workers
+                    let shared_buffer_rx = Arc::new(Mutex::new(buffer_rx));
+                    let mut worker_handles = Vec::with_capacity(WORKER_COUNT);
 
-                                if let Err(e) =
-                                    app_for_enhanced.emit("enhanced_transcript", enhanced)
-                                {
-                                    tracing::error!("Failed to emit enhanced transcript: {}", e);
+                    // Create multiple worker tasks for parallel enhancement processing
+                    for worker_id in 0..WORKER_COUNT {
+                        let shared_rx = Arc::clone(&shared_buffer_rx);
+                        let agent_clone = Arc::clone(&agent);
+                        let app_clone = app_for_enhanced.clone();
+                        let session_manager_clone = session_manager_enhanced.clone();
+
+                        let worker_handle = tokio::spawn(async move {
+                            tracing::debug!("Enhancement worker {} started", worker_id);
+
+                            loop {
+                                // Lock the receiver and try to get the next buffer
+                                let buffer = {
+                                    let mut rx = shared_rx.lock().await;
+                                    rx.recv().await
+                                };
+
+                                match buffer {
+                                    Some(buffer) => {
+                                        let start_time = std::time::Instant::now();
+
+                                        match agent_clone.enhance(buffer).await {
+                                            Ok(enhanced) => {
+                                                let enhancement_duration = start_time.elapsed();
+                                                tracing::debug!(
+                                                    "Worker {} enhanced buffer {} in {:?}",
+                                                    worker_id,
+                                                    enhanced.buffer_id,
+                                                    enhancement_duration
+                                                );
+
+                                                // Track in session manager
+                                                if let Err(e) = session_manager_clone
+                                                    .add_enhanced_buffer(
+                                                        enhanced.buffer_id as usize,
+                                                        enhanced.raw_text.clone(),
+                                                        enhanced.enhanced_text.clone(),
+                                                    )
+                                                    .await
+                                                {
+                                                    tracing::error!(
+                                                        "Worker {} failed to track enhanced buffer in session: {}",
+                                                        worker_id, e
+                                                    );
+                                                }
+
+                                                if let Err(e) = app_clone.emit("enhanced_transcript", enhanced) {
+                                                    tracing::error!(
+                                                        "Worker {} failed to emit enhanced transcript: {}",
+                                                        worker_id, e
+                                                    );
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(
+                                                    "Worker {} enhancement error: {}",
+                                                    worker_id, e
+                                                );
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        // Channel closed, exit worker
+                                        tracing::debug!("Enhancement worker {} completed (channel closed)", worker_id);
+                                        break;
+                                    }
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("Enhancement error: {}", e);
-                            }
+                        });
+
+                        worker_handles.push(worker_handle);
+                    }
+
+                    tracing::info!("Started {} parallel enhancement workers", WORKER_COUNT);
+
+                    // Wait for all workers to complete
+                    for (i, handle) in worker_handles.into_iter().enumerate() {
+                        if let Err(e) = handle.await {
+                            tracing::error!("Enhancement worker {} failed: {}", i, e);
                         }
                     }
+
+                    tracing::info!("All enhancement workers completed");
                 }))
             } else {
                 None
@@ -298,10 +361,10 @@ pub async fn start_transcription(
                 transcript_handle.abort();
                 tracing::info!("Transcript handle aborted");
 
-                // Abort enhancement handle if it exists
+                // Abort enhancement worker pool if it exists
                 if let Some(handle) = enhancement_handle {
                     handle.abort();
-                    tracing::info!("Enhancement handle aborted");
+                    tracing::info!("Enhancement worker pool aborted");
                 }
             }
             _ = &mut processing_handle => {
@@ -314,6 +377,7 @@ pub async fn start_transcription(
                 if let Some(handle) = enhancement_handle {
                     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                     handle.abort();
+                    tracing::info!("Enhancement worker pool completed");
                 }
             }
         }

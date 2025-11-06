@@ -1,6 +1,6 @@
 [package]
 name = "causal"
-version = "2.0.0-RC4"
+version = "2.0.0-RC5"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

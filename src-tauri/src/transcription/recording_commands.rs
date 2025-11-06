@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, State};
 
 /// Save the current transcription session as a recording
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn save_recording(
     app: AppHandle,
     db: State<'_, Database>,

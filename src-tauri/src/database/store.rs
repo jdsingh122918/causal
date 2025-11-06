@@ -650,7 +650,7 @@ impl Database {
 
         let count: usize = conn
             .query_row("SELECT COUNT(*) FROM secure_settings", [], |row| {
-                Ok(row.get::<_, usize>(0)?)
+                row.get::<_, usize>(0)
             })
             .unwrap_or(0);
 
@@ -658,7 +658,7 @@ impl Database {
             .query_row(
                 "SELECT MAX(updated_at) FROM secure_settings",
                 [],
-                |row| Ok(row.get::<_, Option<i64>>(0)?),
+                |row| row.get::<_, Option<i64>>(0),
             )
             .unwrap_or(None);
 
@@ -677,7 +677,7 @@ impl Database {
 
         let keys = stmt
             .query_map([], |row| {
-                Ok(row.get::<_, String>(0)?)
+                row.get::<_, String>(0)
             })
             .map_err(|e| format!("Failed to query keys: {}", e))?
             .collect::<SqlResult<Vec<_>>>()

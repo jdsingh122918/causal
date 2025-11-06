@@ -55,10 +55,6 @@ tracing-appender = "0.2"
 dirs = "5.0"
 regex = "1"
 
-# WebSocket support (for Universal Streaming)
-url = "2.5"
-http = "1.0"
-
 # Anthropic SDK for AI enhancement
 anthropic-sdk = "0.1"
 

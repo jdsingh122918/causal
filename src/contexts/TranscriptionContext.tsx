@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   TranscriptResult,
@@ -54,8 +54,7 @@ export function TranscriptionProvider({
   const { currentProject } = useProjects();
 
   // Real-time event handlers for transcription lifecycle
-  const handleTranscriptionStarted = useCallback((payload: any) => {
-    console.log('Transcription started via real-time event:', payload);
+  const handleTranscriptionStarted = useCallback(() => {
     setState((prev) => ({
       ...prev,
       isRecording: true,
@@ -64,7 +63,6 @@ export function TranscriptionProvider({
   }, []);
 
   const handleTranscriptionStopped = useCallback(() => {
-    console.log('Transcription stopped via real-time event');
     setState((prev) => ({
       ...prev,
       isRecording: false,
@@ -82,7 +80,6 @@ export function TranscriptionProvider({
   }, []);
 
   const handleSessionCleared = useCallback(() => {
-    console.log('Session cleared via real-time event');
     setState({
       isRecording: false,
       status: "idle",

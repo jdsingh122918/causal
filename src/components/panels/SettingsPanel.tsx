@@ -28,6 +28,14 @@ export function SettingsPanel() {
     saveSettings,
   } = useSettings();
 
+  // Debug logging for context values
+  console.log("⚙️ [SettingsPanel] Context values:", {
+    assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+    claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
+    selectedDeviceId,
+    refinementConfig
+  });
+
   const [localDeviceId, setLocalDeviceId] = useState(selectedDeviceId || "");
   const [localAssemblyKey, setLocalAssemblyKey] = useState(assemblyApiKey);
   const [localClaudeKey, setLocalClaudeKey] = useState(claudeApiKey);
@@ -51,12 +59,29 @@ export function SettingsPanel() {
     };
 
     loadDevices();
+  }, []);
+
+  // Update local state when context values change (e.g., after loading from database)
+  useEffect(() => {
+    console.log("⚙️ [SettingsPanel] useEffect triggered - updating local state with context values");
+    console.log("⚙️ [SettingsPanel] Context values received:", {
+      assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+      claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
+      selectedDeviceId,
+      refinementConfig
+    });
+
     setLocalDeviceId(selectedDeviceId || "");
     setLocalAssemblyKey(assemblyApiKey);
     setLocalClaudeKey(claudeApiKey);
     setLocalMode(refinementConfig.mode);
     setLocalChunkDuration(refinementConfig.chunk_duration_secs);
-  }, []);
+
+    console.log("⚙️ [SettingsPanel] Local state updated:", {
+      localAssemblyKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+      localClaudeKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty"
+    });
+  }, [selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig]);
 
   const handleSave = () => {
     try {

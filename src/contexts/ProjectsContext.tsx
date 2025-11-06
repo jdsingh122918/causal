@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { Project, CreateProjectRequest } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { useProjectEvents } from "@/hooks/use-realtime-events";
@@ -26,7 +26,6 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   // Real-time event handlers
   const handleProjectCreated = useCallback((project: Project) => {
-    console.log('Project created via real-time event:', project);
     setProjects((prev) => {
       // Check if project already exists to avoid duplicates
       const exists = prev.some(p => p.id === project.id);
@@ -49,7 +48,6 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleProjectUpdated = useCallback((project: Project) => {
-    console.log('Project updated via real-time event:', project);
     setProjects((prev) => prev.map(p => p.id === project.id ? project : p));
 
     // Update current project if it's the one that was updated
@@ -57,7 +55,6 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleProjectDeleted = useCallback((payload: { id: string }) => {
-    console.log('Project deleted via real-time event:', payload.id);
     setProjects((prev) => prev.filter(p => p.id !== payload.id));
 
     // Clear current project if it's the one that was deleted
@@ -65,7 +62,6 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleCurrentProjectChanged = useCallback((payload: { project_id: string | null }) => {
-    console.log('Current project changed via real-time event:', payload.project_id);
     if (payload.project_id) {
       // Try to find project in current projects list
       const project = projects.find(p => p.id === payload.project_id);
@@ -220,9 +216,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     try {
       const currentProject = await tauri.getCurrentProject();
       setCurrentProject(currentProject);
-      console.log("🔄 Current project refreshed:", currentProject?.name || "None");
     } catch (error) {
-      console.debug("No current project set during refresh:", error);
       setCurrentProject(null);
     }
   };

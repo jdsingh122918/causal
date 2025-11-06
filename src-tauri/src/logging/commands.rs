@@ -117,14 +117,12 @@ pub fn get_recent_logs(log_dir: &Path, limit: usize) -> Result<Vec<LogEntry>, St
             // Format: "  YYYY-MM-DDTHH:MM:SS.SSSSSSZ LEVEL module: message"
             let trimmed = clean_line.trim();
 
-            // Try to extract timestamp, level, and message
-            if let Some(first_space) = trimmed.find(' ') {
-                let timestamp = trimmed[..first_space].trim();
-                let rest = trimmed[first_space..].trim();
-
-                if let Some(second_space) = rest.find(' ') {
-                    let level = rest[..second_space].trim().to_uppercase();
-                    let message = rest[second_space..].trim();
+            // Use regex to extract timestamp in ISO format
+            if let Ok(timestamp_re) = Regex::new(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(\w+)\s+(.+)") {
+                if let Some(captures) = timestamp_re.captures(trimmed) {
+                    let timestamp = captures.get(1).map_or("", |m| m.as_str());
+                    let level = captures.get(2).map_or("INFO", |m| m.as_str()).to_uppercase();
+                    let message = captures.get(3).map_or("", |m| m.as_str());
 
                     return Some(LogEntry {
                         timestamp: timestamp.to_string(),
@@ -132,6 +130,27 @@ pub fn get_recent_logs(log_dir: &Path, limit: usize) -> Result<Vec<LogEntry>, St
                         message: message.to_string(),
                         fields: None,
                     });
+                }
+            }
+
+            // Fallback: Try simple space-based parsing for other formats
+            if let Some(first_space) = trimmed.find(' ') {
+                let potential_timestamp = trimmed[..first_space].trim();
+                let rest = trimmed[first_space..].trim();
+
+                // Check if the potential timestamp looks like an ISO timestamp
+                if potential_timestamp.contains('T') && potential_timestamp.contains('Z') {
+                    if let Some(second_space) = rest.find(' ') {
+                        let level = rest[..second_space].trim().to_uppercase();
+                        let message = rest[second_space..].trim();
+
+                        return Some(LogEntry {
+                            timestamp: potential_timestamp.to_string(),
+                            level,
+                            message: message.to_string(),
+                            fields: None,
+                        });
+                    }
                 }
             }
 

@@ -42,15 +42,6 @@ export function RecordingControls() {
   };
 
   const handleSaveRecording = async () => {
-    console.log("🎯 RecordingControls handleSaveRecording called:", {
-      currentProject,
-      currentProjectId: currentProject?.id,
-      currentProjectName: currentProject?.name,
-      recordingName: recordingName.trim(),
-      hasTranscript: !!state.transcriptText.trim(),
-      timestamp: new Date().toISOString()
-    });
-
     if (!recordingName.trim()) {
       toast.error("Please enter a recording name");
       return;
@@ -65,11 +56,6 @@ export function RecordingControls() {
       setSaving(true);
       // Use cleaned transcript if available, otherwise use raw transcript
       const transcriptToSave = state.cleanedTranscript || state.transcriptText;
-      console.log("🎯 About to call saveRecording with:", {
-        recordingName,
-        transcriptLength: transcriptToSave.length,
-        currentProject: currentProject?.name
-      });
       await saveRecording(recordingName, transcriptToSave);
       toast.success("Recording saved successfully");
       setRecordingName("");

@@ -188,97 +188,6 @@ pub fn get_device_by_id(device_id: &str) -> Result<Device, String> {
 /// AssemblyAI requires between 50ms and 1000ms per chunk
 const CHUNK_DURATION_MS: f32 = 50.0;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_audio_device_serialization() {
-        let device = AudioDevice {
-            id: "test-device-id".to_string(),
-            name: "Test Microphone".to_string(),
-            is_default: true,
-            device_type: AudioDeviceType::Input,
-        };
-
-        // Test serialization to JSON
-        let json = serde_json::to_string(&device).expect("Failed to serialize");
-        assert!(json.contains("test-device-id"));
-        assert!(json.contains("Test Microphone"));
-        assert!(json.contains("Input")); // AudioDeviceType doesn't have rename_all
-
-        // Test deserialization from JSON
-        let deserialized: AudioDevice = serde_json::from_str(&json).expect("Failed to deserialize");
-        assert_eq!(deserialized.id, device.id);
-        assert_eq!(deserialized.name, device.name);
-        assert_eq!(deserialized.is_default, device.is_default);
-    }
-
-    #[test]
-    fn test_audio_format_conversion() {
-        // Test f32 to i16 conversion logic (from the audio processing code)
-        let test_samples = vec![0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5];
-        let expected_i16 = vec![0, 16383, -16383, 32767, -32767, 32767, -32767];
-
-        let converted: Vec<i16> = test_samples
-            .iter()
-            .map(|&sample: &f32| (sample.clamp(-1.0, 1.0) * 32767.0) as i16)
-            .collect();
-
-        assert_eq!(converted, expected_i16);
-    }
-
-    #[test]
-    fn test_stereo_to_mono_conversion() {
-        // Test stereo to mono conversion logic (from the audio processing code)
-        let stereo_data = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; // 3 stereo samples
-        let channels = 2;
-
-        let mono_data: Vec<f32> = stereo_data
-            .chunks(channels)
-            .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
-            .collect();
-
-        let expected = vec![0.15, 0.35000002, 0.55]; // Average of each stereo pair (floating point precision)
-        assert_eq!(mono_data, expected);
-    }
-
-    #[test]
-    fn test_chunk_size_calculation() {
-        // Test chunk size calculation logic
-        let sample_rate = 48000u32;
-        let chunk_duration_ms = 50.0;
-        let expected_chunk_size = ((sample_rate as f32 * chunk_duration_ms) / 1000.0) as usize;
-
-        assert_eq!(expected_chunk_size, 2400); // 50ms at 48kHz = 2400 samples
-
-        // Test different sample rates
-        let sample_rate_16k = 16000u32;
-        let chunk_size_16k = ((sample_rate_16k as f32 * chunk_duration_ms) / 1000.0) as usize;
-        assert_eq!(chunk_size_16k, 800); // 50ms at 16kHz = 800 samples
-    }
-
-    #[test]
-    fn test_audio_device_type_serialization() {
-        // Test AudioDeviceType serialization (maintains original case)
-        let input_type = AudioDeviceType::Input;
-        let output_type = AudioDeviceType::Output;
-
-        let input_json = serde_json::to_string(&input_type).unwrap();
-        let output_json = serde_json::to_string(&output_type).unwrap();
-
-        assert_eq!(input_json, "\"Input\"");
-        assert_eq!(output_json, "\"Output\"");
-
-        // Test deserialization
-        let input_deserialized: AudioDeviceType = serde_json::from_str("\"Input\"").unwrap();
-        let output_deserialized: AudioDeviceType = serde_json::from_str("\"Output\"").unwrap();
-
-        assert!(matches!(input_deserialized, AudioDeviceType::Input));
-        assert!(matches!(output_deserialized, AudioDeviceType::Output));
-    }
-}
-
 /// Commands for controlling the audio thread
 enum AudioThreadCommand {
     Stop,
@@ -559,5 +468,96 @@ impl AudioCapture {
             .map_err(|e| format!("Failed to start audio stream: {}", e))?;
 
         Ok(stream)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audio_device_serialization() {
+        let device = AudioDevice {
+            id: "test-device-id".to_string(),
+            name: "Test Microphone".to_string(),
+            is_default: true,
+            device_type: AudioDeviceType::Input,
+        };
+
+        // Test serialization to JSON
+        let json = serde_json::to_string(&device).expect("Failed to serialize");
+        assert!(json.contains("test-device-id"));
+        assert!(json.contains("Test Microphone"));
+        assert!(json.contains("Input")); // AudioDeviceType doesn't have rename_all
+
+        // Test deserialization from JSON
+        let deserialized: AudioDevice = serde_json::from_str(&json).expect("Failed to deserialize");
+        assert_eq!(deserialized.id, device.id);
+        assert_eq!(deserialized.name, device.name);
+        assert_eq!(deserialized.is_default, device.is_default);
+    }
+
+    #[test]
+    fn test_audio_format_conversion() {
+        // Test f32 to i16 conversion logic (from the audio processing code)
+        let test_samples = [0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5];
+        let expected_i16 = vec![0, 16383, -16383, 32767, -32767, 32767, -32767];
+
+        let converted: Vec<i16> = test_samples
+            .iter()
+            .map(|&sample: &f32| (sample.clamp(-1.0, 1.0) * 32767.0) as i16)
+            .collect();
+
+        assert_eq!(converted, expected_i16);
+    }
+
+    #[test]
+    fn test_stereo_to_mono_conversion() {
+        // Test stereo to mono conversion logic (from the audio processing code)
+        let stereo_data = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; // 3 stereo samples
+        let channels = 2;
+
+        let mono_data: Vec<f32> = stereo_data
+            .chunks(channels)
+            .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
+            .collect();
+
+        let expected = vec![0.15, 0.35000002, 0.55]; // Average of each stereo pair (floating point precision)
+        assert_eq!(mono_data, expected);
+    }
+
+    #[test]
+    fn test_chunk_size_calculation() {
+        // Test chunk size calculation logic
+        let sample_rate = 48000u32;
+        let chunk_duration_ms = 50.0;
+        let expected_chunk_size = ((sample_rate as f32 * chunk_duration_ms) / 1000.0) as usize;
+
+        assert_eq!(expected_chunk_size, 2400); // 50ms at 48kHz = 2400 samples
+
+        // Test different sample rates
+        let sample_rate_16k = 16000u32;
+        let chunk_size_16k = ((sample_rate_16k as f32 * chunk_duration_ms) / 1000.0) as usize;
+        assert_eq!(chunk_size_16k, 800); // 50ms at 16kHz = 800 samples
+    }
+
+    #[test]
+    fn test_audio_device_type_serialization() {
+        // Test AudioDeviceType serialization (maintains original case)
+        let input_type = AudioDeviceType::Input;
+        let output_type = AudioDeviceType::Output;
+
+        let input_json = serde_json::to_string(&input_type).unwrap();
+        let output_json = serde_json::to_string(&output_type).unwrap();
+
+        assert_eq!(input_json, "\"Input\"");
+        assert_eq!(output_json, "\"Output\"");
+
+        // Test deserialization
+        let input_deserialized: AudioDeviceType = serde_json::from_str("\"Input\"").unwrap();
+        let output_deserialized: AudioDeviceType = serde_json::from_str("\"Output\"").unwrap();
+
+        assert!(matches!(input_deserialized, AudioDeviceType::Input));
+        assert!(matches!(output_deserialized, AudioDeviceType::Output));
     }
 }

@@ -111,8 +111,8 @@ mod tests {
             CausalError::Transcription("test".to_string()),
             CausalError::Logging("test".to_string()),
             CausalError::Config("test".to_string()),
-            CausalError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test")),
-            CausalError::Serialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::Other, "test"))),
+            CausalError::Io(std::io::Error::other("test")),
+            CausalError::Serialization(serde_json::Error::io(std::io::Error::other("test"))),
             CausalError::WebSocket("test".to_string()),
             CausalError::Generic("test".to_string()),
         ];

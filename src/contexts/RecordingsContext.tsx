@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Recording, TranscriptSummary, Project } from "@/lib/types";
 import { useProjects } from "./ProjectsContext";
@@ -43,7 +43,6 @@ export function RecordingsProvider({
 
   // Real-time event handlers
   const handleRecordingCreated = useCallback((recording: Recording) => {
-    console.log('Recording created via real-time event:', recording);
     setRecordings((prev) => {
       // Check if recording already exists to avoid duplicates
       const exists = prev.some(r => r.id === recording.id);
@@ -66,7 +65,6 @@ export function RecordingsProvider({
   }, []);
 
   const handleRecordingUpdated = useCallback((recording: Recording) => {
-    console.log('Recording updated via real-time event:', recording);
     setRecordings((prev) => prev.map(r => r.id === recording.id ? recording : r));
 
     // Update current recording if it's the one that was updated
@@ -74,7 +72,6 @@ export function RecordingsProvider({
   }, []);
 
   const handleRecordingDeleted = useCallback((payload: { id: string }) => {
-    console.log('Recording deleted via real-time event:', payload.id);
     setRecordings((prev) => prev.filter(r => r.id !== payload.id));
 
     // Clear current recording if it's the one that was deleted
@@ -82,8 +79,6 @@ export function RecordingsProvider({
   }, []);
 
   const handleRecordingSaved = useCallback((recording: Recording) => {
-    console.log('Recording saved via real-time event:', recording);
-
     // Add the recording to the list
     setRecordings((prev) => {
       // Check if recording already exists to avoid duplicates
@@ -108,7 +103,6 @@ export function RecordingsProvider({
   }, []);
 
   const handleRecordingSummaryGenerated = useCallback((recording: Recording) => {
-    console.log('Recording summary generated via real-time event:', recording);
     setRecordings((prev) => prev.map(r => r.id === recording.id ? recording : r));
 
     // Update current recording if it's the one with the new summary
@@ -186,18 +180,7 @@ export function RecordingsProvider({
   }, [currentProject]);
 
   const saveRecording = async (name: string, _transcript: string) => {
-    console.log("🔍 SaveRecording Debug Info:", {
-      currentProject,
-      currentProjectId: currentProject?.id,
-      currentProjectName: currentProject?.name,
-      recordingName: name,
-      transcriptLength: _transcript.length,
-      timestamp: new Date().toISOString()
-    });
-
     if (!currentProject) {
-      console.warn("🔄 currentProject is null, attempting to refresh...");
-
       // First try to refresh the current project in the context
       try {
         await refreshCurrentProject();
@@ -205,7 +188,6 @@ export function RecordingsProvider({
         // After refresh, try to get the updated project directly from backend
         const refreshedProject = await invoke<Project | null>("get_current_project");
         if (refreshedProject) {
-          console.log("✅ Project refresh successful, using refreshed project for save");
 
           // Use the refreshed project directly for this operation
           const optimisticId = `temp-${Date.now()}`;
@@ -217,20 +199,23 @@ export function RecordingsProvider({
             enhanced_transcript: "",
             summary: null,
             key_points: [],
-            claude_api_key: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            action_items: [],
+            created_at: Date.now(),
+            status: "Recording",
+            metadata: {
+              duration_seconds: 0,
+              chunk_count: 0,
+              word_count: _transcript.split(' ').length,
+              turn_count: 1,
+              average_confidence: 0.95,
+            },
           };
 
           setOptimisticOperations(prev => new Map(prev.set(optimisticId, optimisticRecording)));
           setRecordings(prev => [optimisticRecording, ...prev]);
 
           try {
-            await tauri.saveRecording(refreshedProject.id, {
-              name,
-              transcript: _transcript,
-            });
-            console.log("✅ Recording saved successfully with refreshed project");
+            await tauri.saveRecording(name);
             return;
           } catch (error) {
             console.error("❌ Failed to save with refreshed project:", error);
@@ -252,16 +237,14 @@ export function RecordingsProvider({
           }
         }
       } catch (refreshError) {
-        console.warn("⚠️ Failed to refresh current project:", refreshError);
+        console.error("Failed to refresh current project:", refreshError);
       }
 
-      // Additional debugging - try to fetch current project directly
+      // Additional fallback - try to fetch current project directly
       try {
         const backendProject = await invoke<Project | null>("get_current_project");
-        console.error("🚨 Frontend currentProject is null but backend has:", backendProject);
 
         if (backendProject) {
-          console.log("🔧 Using backend project for save operation");
           // Use the backend project for this operation
           const optimisticId = `temp-${Date.now()}`;
           const optimisticRecording: Recording = {
@@ -272,9 +255,16 @@ export function RecordingsProvider({
             enhanced_transcript: "",
             summary: null,
             key_points: [],
-            claude_api_key: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            action_items: [],
+            created_at: Date.now(),
+            status: "Recording",
+            metadata: {
+              duration_seconds: 0,
+              chunk_count: 0,
+              word_count: _transcript.split(' ').length,
+              turn_count: 1,
+              average_confidence: 0.95,
+            },
           };
 
           // Perform the save operation with backend project
@@ -282,11 +272,7 @@ export function RecordingsProvider({
           setRecordings(prev => [optimisticRecording, ...prev]);
 
           try {
-            await tauri.saveRecording(backendProject.id, {
-              name,
-              transcript: _transcript,
-            });
-            console.log("✅ Recording saved successfully with backend project");
+            await tauri.saveRecording(name);
             return;
           } catch (error) {
             console.error("❌ Failed to save with backend project:", error);
@@ -351,8 +337,6 @@ export function RecordingsProvider({
         shouldAutoGenerate ? claudeApiKey : undefined, // claudeApiKey
         shouldAutoGenerate || false // autoGenerateSummary
       );
-
-      console.log(`Recording saved${shouldAutoGenerate ? ' with auto-summary enabled' : ''}`);
 
       // Add a fallback refresh in case the real-time event doesn't work
       setTimeout(() => {

@@ -41,6 +41,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     saveSettings,
   } = useSettings();
 
+  // Debug logging for context values
+  console.log("🎛️ [SettingsDialog] Context values:", {
+    assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+    claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
+    selectedDeviceId,
+    refinementConfig
+  });
+
   const [localDeviceId, setLocalDeviceId] = useState(selectedDeviceId || "");
   const [localAssemblyKey, setLocalAssemblyKey] = useState(assemblyApiKey);
   const [localClaudeKey, setLocalClaudeKey] = useState(claudeApiKey);
@@ -71,7 +79,29 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       setLocalMode(refinementConfig.mode);
       setLocalChunkDuration(refinementConfig.chunk_duration_secs);
     }
-  }, [open]);
+  }, [open, selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig]);
+
+  // Update local state when context values change (e.g., after loading from database)
+  useEffect(() => {
+    console.log("🎛️ [SettingsDialog] useEffect triggered - updating local state with context values");
+    console.log("🎛️ [SettingsDialog] Context values received:", {
+      assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+      claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
+      selectedDeviceId,
+      refinementConfig
+    });
+
+    setLocalDeviceId(selectedDeviceId || "");
+    setLocalAssemblyKey(assemblyApiKey);
+    setLocalClaudeKey(claudeApiKey);
+    setLocalMode(refinementConfig.mode);
+    setLocalChunkDuration(refinementConfig.chunk_duration_secs);
+
+    console.log("🎛️ [SettingsDialog] Local state updated:", {
+      localAssemblyKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
+      localClaudeKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty"
+    });
+  }, [selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig]);
 
 
   const handleSave = () => {

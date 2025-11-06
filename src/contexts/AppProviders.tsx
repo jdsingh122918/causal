@@ -1,4 +1,4 @@
-import React from "react";
+import { type ReactNode } from "react";
 import { ThemeProvider } from "./ThemeProvider";
 import { SettingsProvider } from "./SettingsContext";
 import { ProjectsProvider } from "./ProjectsContext";
@@ -15,7 +15,7 @@ function ProviderErrorBoundary({
   children,
   name
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   name: string;
 }) {
   return (
@@ -51,11 +51,8 @@ function ProviderErrorBoundary({
  * Settings and Projects are independent, but Recordings depends on Projects,
  * and Transcription is independent.
  */
-export function AppProviders({ children }: { children: React.ReactNode }) {
-  console.log("🔧 AppProviders: Starting provider initialization...");
-
+export function AppProviders({ children }: { children: ReactNode }) {
   try {
-    console.log("🔧 AppProviders: Rendering provider tree...");
     return (
       <ProviderErrorBoundary name="Theme">
         <ThemeProvider>

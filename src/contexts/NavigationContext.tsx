@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type NavigationView = 'recording' | 'settings' | 'diagnostics';
 
@@ -9,7 +9,7 @@ interface NavigationContextType {
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
-export function NavigationProvider({ children }: { children: React.ReactNode }) {
+export function NavigationProvider({ children }: { children: ReactNode }) {
   const [currentView, setCurrentView] = useState<NavigationView>('recording');
 
   return (

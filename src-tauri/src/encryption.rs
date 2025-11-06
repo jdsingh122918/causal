@@ -56,19 +56,61 @@ pub struct SettingsEncryption {
 impl SettingsEncryption {
     /// Create a new settings encryption instance
     ///
-    /// Generates device-specific entropy for key derivation. In a real deployment,
-    /// this could be enhanced with additional device fingerprinting.
+    /// Uses deterministic device-specific entropy for key derivation to ensure
+    /// consistency across application restarts.
     pub fn new() -> Result<Self, EncryptionError> {
         let mut device_entropy = [0u8; 32];
 
-        // Generate device-specific entropy
-        // In production, this could include:
-        // - Hardware identifiers (MAC address, CPU ID)
-        // - OS-specific identifiers
-        // - Installation-specific UUIDs
-        OsRng.fill_bytes(&mut device_entropy);
+        // Generate deterministic device-specific entropy
+        // This ensures the same entropy is generated every time for this device
+        let device_string = Self::get_device_identifier();
+        let device_bytes = device_string.as_bytes();
+
+        // Create deterministic entropy by hashing the device identifier
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        device_bytes.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        // Fill entropy array with deterministic but unique data
+        for (i, chunk) in device_entropy.chunks_mut(8).enumerate() {
+            let mut local_hasher = DefaultHasher::new();
+            (hash, i).hash(&mut local_hasher);
+            let chunk_hash = local_hasher.finish();
+            let bytes = chunk_hash.to_le_bytes();
+            let copy_len = chunk.len().min(bytes.len());
+            chunk[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        }
 
         Ok(Self { device_entropy })
+    }
+
+    /// Get a device identifier for consistent entropy generation
+    fn get_device_identifier() -> String {
+        // Create a deterministic device identifier
+        // This combines multiple device-specific elements for uniqueness
+        let mut identifier = String::new();
+
+        // Add OS information
+        identifier.push_str(&std::env::consts::OS);
+        identifier.push_str("-");
+        identifier.push_str(&std::env::consts::ARCH);
+        identifier.push_str("-");
+
+        // Add current user information (if available)
+        if let Ok(username) = std::env::var("USER").or_else(|_| std::env::var("USERNAME")) {
+            identifier.push_str(&username);
+        } else {
+            identifier.push_str("unknown-user");
+        }
+        identifier.push_str("-");
+
+        // Add a constant application identifier
+        identifier.push_str("causal-app-v2");
+
+        identifier
     }
 
     /// Derive encryption key from device entropy and salt
@@ -113,8 +155,7 @@ impl SettingsEncryption {
 
         // Derive key from device entropy and salt
         let key_bytes = self.derive_key(&salt)?;
-        let key: &Key = (&key_bytes[..32]).try_into()
-            .map_err(|_| EncryptionError::KeyDerivationFailed("Invalid key length".to_string()))?;
+        let key: &Key = (&key_bytes[..32]).into();
 
         // Create cipher and generate nonce
         let cipher = ChaCha20Poly1305::new(key);
@@ -146,13 +187,11 @@ impl SettingsEncryption {
 
         // Derive key from device entropy and stored salt
         let key_bytes = self.derive_key(&encrypted_data.salt)?;
-        let key: &Key = (&key_bytes[..32]).try_into()
-            .map_err(|_| EncryptionError::DecryptionFailed("Invalid key length".to_string()))?;
+        let key: &Key = (&key_bytes[..32]).into();
 
         // Extract nonce and ciphertext
         let (nonce_bytes, ciphertext) = encrypted_data.encrypted_value.split_at(12);
-        let nonce: &Nonce = nonce_bytes.try_into()
-            .map_err(|_| EncryptionError::DecryptionFailed("Invalid nonce length".to_string()))?;
+        let nonce: &Nonce = nonce_bytes.into();
 
         // Create cipher and decrypt
         let cipher = ChaCha20Poly1305::new(key);

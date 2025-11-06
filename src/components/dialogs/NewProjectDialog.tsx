@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, type FormEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   const [loading, setLoading] = useState(false);
   const { createProject } = useProjects();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {

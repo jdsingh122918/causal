@@ -110,7 +110,10 @@ export function useIntelligenceAnalysis(
         setLastError(null);
         const startTime = Date.now();
 
-        const result = await intelligence.analyzeText(text, options.bufferId);
+        const result = await intelligence.analyzeText(
+          text,
+          options.bufferId || Math.floor(Math.random() * 4294967295),
+        );
 
         const processingTime = Date.now() - startTime;
         processingTimeTracker.current.push(processingTime);

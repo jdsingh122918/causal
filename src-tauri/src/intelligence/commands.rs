@@ -243,31 +243,31 @@ pub fn get_available_analysis_types() -> Result<Vec<serde_json::Value>, String> 
 
     let types = vec![
         serde_json::json!({
-            "type": "sentiment",
+            "type": "Sentiment",
             "name": "Sentiment Analysis",
             "description": "Analyzes emotional tone, confidence levels, and key sentiment drivers",
             "output": ["overall_sentiment", "confidence", "emotional_tone", "key_phrases"]
         }),
         serde_json::json!({
-            "type": "financial",
+            "type": "Financial",
             "name": "Financial Analysis",
             "description": "Extracts financial metrics, currencies, growth rates, and business outlook",
             "output": ["metrics", "currencies", "percentages", "financial_terms", "outlook"]
         }),
         serde_json::json!({
-            "type": "competitive",
+            "type": "Competitive",
             "name": "Competitive Intelligence",
             "description": "Identifies competitors, market positioning, and competitive advantages",
             "output": ["competitors_mentioned", "competitive_positioning", "market_share_mentions", "competitive_advantages", "threats_identified"]
         }),
         serde_json::json!({
-            "type": "summary",
+            "type": "Summary",
             "name": "Summary & Insights",
             "description": "Extracts key points, action items, decisions, and business impact",
             "output": ["key_points", "action_items", "decisions_made", "business_impact", "follow_up_required"]
         }),
         serde_json::json!({
-            "type": "risk",
+            "type": "Risk",
             "name": "Risk Analysis",
             "description": "Identifies business risks, risk levels, and mitigation strategies",
             "output": ["risks_identified", "risk_level", "mitigation_strategies", "regulatory_concerns"]

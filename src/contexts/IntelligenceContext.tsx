@@ -41,7 +41,7 @@ export interface RiskAnalysis {
   regulatory_concerns: string[];
 }
 
-export type AnalysisType = "sentiment" | "financial" | "competitive" | "summary" | "risk";
+export type AnalysisType = "Sentiment" | "Financial" | "Competitive" | "Summary" | "Risk";
 
 export interface IntelligenceResult {
   buffer_id: number;
@@ -127,7 +127,7 @@ interface IntelligenceContextType {
 }
 
 const defaultConfig: IntelligenceConfig = {
-  enabled_analyses: ["sentiment", "financial", "summary"],
+  enabled_analyses: ["Sentiment", "Financial", "Summary"],
   api_key: "",
   model: "claude-haiku-4-5-20251001",
   max_tokens: 4096,
@@ -287,7 +287,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  const analyzeText = useCallback(async (text: string, bufferId: number = Date.now()) => {
+  const analyzeText = useCallback(async (text: string, bufferId: number = Math.floor(Math.random() * 4294967295)) => {
     try {
       setState(prev => ({ ...prev, isProcessing: true }));
       const result = await invoke<CombinedIntelligence>("analyze_text_buffer", {

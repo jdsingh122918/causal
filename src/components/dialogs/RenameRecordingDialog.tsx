@@ -107,3 +107,5 @@ export function RenameRecordingDialog({
     </Dialog>
   );
 }
+
+export default RenameRecordingDialog;

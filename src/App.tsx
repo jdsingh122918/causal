@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
@@ -5,10 +6,12 @@ import { useProjects } from "@/contexts/ProjectsContext";
 import { RecordingControls } from "@/components/recording/RecordingControls";
 import { TranscriptDisplay } from "@/components/recording/TranscriptDisplay";
 import { RecordingHistory } from "@/components/recording/RecordingHistory";
-import { SettingsPanel } from "@/components/panels/SettingsPanel";
-import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
-import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
+
+// Lazy load components that aren't needed immediately
+const SettingsPanel = lazy(() => import("@/components/panels/SettingsPanel"));
+const DiagnosticsPanel = lazy(() => import("@/components/panels/DiagnosticsPanel"));
+const RecordingDetailsPage = lazy(() => import("@/pages/RecordingDetailsPage"));
 
 function ProjectView() {
   const { currentProject } = useProjects();
@@ -49,15 +52,44 @@ function ProjectView() {
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <AppLayout>
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<ProjectView />} />
-          <Route path="/recordings/:recordingId" element={<RecordingDetailsPage />} />
-          <Route path="/settings" element={<SettingsPanel />} />
-          <Route path="/diagnostics" element={<DiagnosticsPanel />} />
+          <Route
+            path="/recordings/:recordingId"
+            element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <RecordingDetailsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <SettingsPanel />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/diagnostics"
+            element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <DiagnosticsPanel />
+              </Suspense>
+            }
+          />
         </Routes>
       </ErrorBoundary>
     </AppLayout>

@@ -15,6 +15,54 @@ export default defineConfig(async () => ({
     },
   },
 
+  // Build optimizations for production bundles
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          // Vendor chunk for React and core libraries
+          if (
+            id.includes("react") ||
+            id.includes("react-dom") ||
+            id.includes("react-router-dom")
+          ) {
+            return "vendor";
+          }
+
+          // UI library chunk for shadcn/ui and Radix components
+          if (id.includes("@radix-ui") || id.includes("sonner")) {
+            return "ui";
+          }
+
+          // Tauri API chunk
+          if (id.includes("@tauri-apps")) {
+            return "tauri";
+          }
+
+          // Utilities chunk
+          if (
+            id.includes("class-variance-authority") ||
+            id.includes("clsx") ||
+            id.includes("tailwind-merge") ||
+            id.includes("lucide-react")
+          ) {
+            return "utils";
+          }
+
+          // Keep large node_modules separate
+          if (id.includes("node_modules")) {
+            return "vendor";
+          }
+        },
+      },
+    },
+    // Increase chunk size warning limit to 750kB (more reasonable for desktop apps)
+    chunkSizeWarningLimit: 750,
+    // Enable minification and compression
+    minify: "esbuild",
+    target: "es2020",
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

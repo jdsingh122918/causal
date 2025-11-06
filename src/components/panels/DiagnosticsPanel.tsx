@@ -266,3 +266,5 @@ export function DiagnosticsPanel() {
     </div>
   );
 }
+
+export default DiagnosticsPanel;

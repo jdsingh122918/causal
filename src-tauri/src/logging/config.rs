@@ -26,11 +26,7 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             log_dir: PathBuf::new(), // Will be set by app
-            max_level: if cfg!(debug_assertions) {
-                Level::DEBUG
-            } else {
-                Level::INFO
-            },
+            max_level: Level::INFO,
             enable_console: cfg!(debug_assertions),
             enable_file: true,
             enable_json: !cfg!(debug_assertions),

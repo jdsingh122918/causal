@@ -145,7 +145,7 @@ mod tests {
         // In debug mode
         #[cfg(debug_assertions)]
         {
-            assert_eq!(config.max_level, tracing::Level::DEBUG);
+            assert_eq!(config.max_level, tracing::Level::INFO);
             assert!(config.enable_console);
             assert!(!config.enable_json);
             assert_eq!(config.privacy_mode, PrivacyMode::Full);

@@ -42,7 +42,7 @@ export function RecordingsProvider({
   );
   const [loading, setLoading] = useState(false);
   const [optimisticOperations, setOptimisticOperations] = useState<Map<string, Recording>>(new Map());
-  const { currentProject, refreshCurrentProject } = useProjects();
+  const { currentProject, refreshCurrentProject, projects } = useProjects();
   const { claudeApiKey } = useSettings();
 
   // Real-time event handlers
@@ -190,24 +190,60 @@ export function RecordingsProvider({
     if (!projectToUse) {
       logger.warn("Recordings", "No current project in context, attempting to restore...");
 
-      // Try to refresh the current project in the context
+      // Try multiple restoration methods
       try {
+        // Method 1: Refresh current project from backend
         await refreshCurrentProject();
-        // Fetch the project directly since state update won't be available yet
         const refreshedProject = await invoke<Project | null>("get_current_project");
 
         if (refreshedProject) {
           logger.info("Recordings", `Successfully restored project: ${refreshedProject.name}`);
           projectToUse = refreshedProject;
         } else {
-          logger.error("Recordings", "Failed to restore project from backend - no project selected");
-          throw new Error("No project selected. Please select a project before saving recordings.");
+          // Method 2: Try to get from localStorage and set as current
+          const lastSelectedProjectId = localStorage.getItem("causal_last_selected_project");
+          if (lastSelectedProjectId) {
+            logger.info("Recordings", `Attempting to restore from localStorage: ${lastSelectedProjectId}`);
+
+            // Get all projects and find the last selected one
+            const allProjects = await tauri.listProjects();
+            const lastProject = allProjects.find(p => p.id === lastSelectedProjectId);
+
+            if (lastProject) {
+              logger.info("Recordings", `Found project in localStorage, setting as current: ${lastProject.name}`);
+              await tauri.selectProject(lastProject.id);
+              projectToUse = lastProject;
+            } else {
+              // Method 3: Auto-select first available project
+              if (allProjects.length > 0) {
+                logger.info("Recordings", `Auto-selecting first available project: ${allProjects[0].name}`);
+                await tauri.selectProject(allProjects[0].id);
+                projectToUse = allProjects[0];
+              } else {
+                throw new Error("No projects available. Please create a project first.");
+              }
+            }
+          } else if (projects.length > 0) {
+            // Method 4: Auto-select first project from context
+            logger.info("Recordings", `Auto-selecting first project from context: ${projects[0].name}`);
+            await tauri.selectProject(projects[0].id);
+            projectToUse = projects[0];
+          } else {
+            throw new Error("No projects available. Please create a project first.");
+          }
         }
       } catch (refreshError) {
-        logger.error("Recordings", "Failed to refresh current project:", refreshError);
-        throw new Error("No project selected. Please select a project before saving recordings.");
+        logger.error("Recordings", "Failed to restore project:", refreshError);
+        throw new Error("Unable to determine project for saving recording. Please select a project and try again.");
       }
     }
+
+    // Final safety check
+    if (!projectToUse) {
+      throw new Error("Failed to determine project for saving recording. Please select a project and try again.");
+    }
+
+    logger.info("Recordings", `Saving recording to project: ${projectToUse.name}`);
 
     // Generate optimistic ID
     const optimisticId = `temp-${Date.now()}`;

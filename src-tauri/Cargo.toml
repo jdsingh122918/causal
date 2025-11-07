@@ -75,11 +75,15 @@ chacha20poly1305 = "0.10"
 argon2 = "0.5"
 rand = "0.8"
 
-# Vector embeddings for semantic search
-ort = "1.16"               # ONNX Runtime for local embeddings (stable version)
-ndarray = "0.15"          # Multi-dimensional arrays for vector operations
-tokenizers = "0.19"       # Tokenization for embedding model
-rayon = "1.7"             # Parallel processing for bulk operations
+# MongoDB and vector search dependencies
+mongodb = "3.0"           # MongoDB driver for Rust
+bson = "2.9"              # BSON document support
+
+# Vector embeddings for semantic search (legacy - to be removed after migration)
+# ort = "1.16"               # ONNX Runtime for local embeddings (stable version)
+# ndarray = "0.15"          # Multi-dimensional arrays for vector operations
+# tokenizers = "0.19"       # Tokenization for embedding model
+rayon = "1.7"             # Parallel processing for bulk operations (still needed)
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

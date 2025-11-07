@@ -28,7 +28,7 @@
 //! components and starts the Tauri application loop.
 
 mod database;
-mod embeddings;
+// mod embeddings;  // Temporarily disabled for MongoDB migration
 mod encryption;
 mod error;
 mod intelligence;
@@ -39,7 +39,7 @@ mod transcription;
 pub mod test_utils;
 
 use database::Database;
-use embeddings::commands::EmbeddingsState;
+// use embeddings::commands::EmbeddingsState;  // Temporarily disabled for MongoDB migration
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};
 use intelligence::commands::IntelligenceState;
@@ -241,7 +241,7 @@ pub fn run() {
         metrics,
     });
     let intelligence_state = Mutex::new(IntelligenceState::default());
-    let embeddings_state = Mutex::new(EmbeddingsState::default());
+    // let embeddings_state = Mutex::new(EmbeddingsState::default());  // Disabled for MongoDB migration
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -321,7 +321,7 @@ pub fn run() {
         .manage(database)
         .manage(logging_state)
         .manage(intelligence_state)
-        .manage(embeddings_state)
+        // .manage(embeddings_state)  // Disabled for MongoDB migration
         .invoke_handler(tauri::generate_handler![
             greet,
             transcription::list_audio_devices,
@@ -386,14 +386,14 @@ pub fn run() {
             intelligence::get_available_analysis_types,
             intelligence::clear_intelligence_system,
             intelligence::test_intelligence_connectivity,
-            // Embeddings and semantic search commands
-            embeddings::initialize_embeddings_service,
-            embeddings::is_embeddings_initialized,
-            embeddings::store_analysis_with_embedding,
-            embeddings::search_analyses_semantic,
-            embeddings::get_analysis_context,
-            embeddings::get_analysis_trends,
-            embeddings::get_analysis_stats,
+            // Embeddings and semantic search commands - DISABLED FOR MONGODB MIGRATION
+            // embeddings::initialize_embeddings_service,
+            // embeddings::is_embeddings_initialized,
+            // embeddings::store_analysis_with_embedding,
+            // embeddings::search_analyses_semantic,
+            // embeddings::get_analysis_context,
+            // embeddings::get_analysis_trends,
+            // embeddings::get_analysis_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

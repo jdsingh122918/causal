@@ -298,7 +298,7 @@ pub fn clear_intelligence_system(
 #[tauri::command]
 pub async fn analyze_and_store_text_buffer(
     intelligence_state: State<'_, Mutex<IntelligenceState>>,
-    embeddings_state: State<'_, Mutex<crate::embeddings::commands::EmbeddingsState>>,
+    // embeddings_state: State<'_, Mutex<crate::embeddings::commands::EmbeddingsState>>,  // Disabled for MongoDB migration
     database: State<'_, crate::database::Database>,
     app: AppHandle,
     recording_id: String,
@@ -323,12 +323,12 @@ pub async fn analyze_and_store_text_buffer(
 
     info!("🧠 Starting analysis with storage for recording {}", recording_id);
 
-    // Get embedding service
-    let service_arc = {
-        let state = embeddings_state.lock()
-            .map_err(|e| format!("Failed to lock embeddings state: {}", e))?;
-        state.service.clone()
-    };
+    // Get embedding service - DISABLED FOR MONGODB MIGRATION
+    // let service_arc = {
+    //     let state = embeddings_state.lock()
+    //         .map_err(|e| format!("Failed to lock embeddings state: {}", e))?;
+    //     state.service.clone()
+    // };
 
     // Create a transcription buffer for analysis
     let buffer = TranscriptionBuffer {
@@ -343,36 +343,36 @@ pub async fn analyze_and_store_text_buffer(
     let mut results = HashMap::new();
 
     for analysis_type in &enabled_analyses {
-        // Get historical context if embeddings are available
-        let has_embeddings = {
-            if let Ok(service_guard) = service_arc.lock() {
-                service_guard.is_some()
-            } else {
-                false
-            }
-        };
+        // Get historical context if embeddings are available - DISABLED FOR MONGODB MIGRATION
+        // let has_embeddings = {
+        //     if let Ok(service_guard) = service_arc.lock() {
+        //         service_guard.is_some()
+        //     } else {
+        //         false
+        //     }
+        // };
 
-        let _context = if has_embeddings {
-            let conn_guard = database.get_connection().await;
+        // let _context = if has_embeddings {
+        //     let conn_guard = database.get_connection().await;
 
-            if let Ok(service_guard) = service_arc.lock() {
-                if let Some(service) = service_guard.as_ref() {
-                    service.get_historical_context(
-                        &conn_guard,
-                        &text,
-                        &project_id,
-                        analysis_type.as_str(),
-                        3,
-                    ).unwrap_or_default()
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
+        //     if let Ok(service_guard) = service_arc.lock() {
+        //         if let Some(service) = service_guard.as_ref() {
+        //             service.get_historical_context(
+        //                 &conn_guard,
+        //                 &text,
+        //                 &project_id,
+        //                 analysis_type.as_str(),
+        //                 3,
+        //             ).unwrap_or_default()
+        //         } else {
+        //             String::new()
+        //         }
+        //     } else {
+        //         String::new()
+        //     }
+        // } else {
+        //     String::new()
+        // };
 
         // Run analysis
         let result = match analysis_type {
@@ -400,49 +400,49 @@ pub async fn analyze_and_store_text_buffer(
 
         match result {
             Ok(analysis_result) => {
-                // Store analysis with embedding
-                let has_embedding_service = {
-                    if let Ok(service_guard) = service_arc.lock() {
-                        service_guard.is_some()
-                    } else {
-                        false
-                    }
-                };
+                // Store analysis with embedding - DISABLED FOR MONGODB MIGRATION
+                // let has_embedding_service = {
+                //     if let Ok(service_guard) = service_arc.lock() {
+                //         service_guard.is_some()
+                //     } else {
+                //         false
+                //     }
+                // };
 
-                if has_embedding_service {
-                    let conn_guard = database.get_connection().await;
+                // if has_embedding_service {
+                //     let conn_guard = database.get_connection().await;
 
-                    if let Ok(service_guard) = service_arc.lock() {
-                        if let Some(service) = service_guard.as_ref() {
+                //     if let Ok(service_guard) = service_arc.lock() {
+                //         if let Some(service) = service_guard.as_ref() {
 
-                        // Serialize analysis result
-                        let analysis_content = serde_json::to_string(&analysis_result)
-                            .unwrap_or_default();
+                //         // Serialize analysis result
+                //         let analysis_content = serde_json::to_string(&analysis_result)
+                //             .unwrap_or_default();
 
-                        // Calculate confidence score based on analysis type
-                        let confidence_score = match &analysis_result.sentiment {
-                            Some(s) => Some(s.confidence),
-                            None => None,
-                        };
+                //         // Calculate confidence score based on analysis type
+                //         let confidence_score = match &analysis_result.sentiment {
+                //             Some(s) => Some(s.confidence),
+                //             None => None,
+                //         };
 
-                        // Store with embedding
-                        if let Err(e) = service.store_analysis_with_embedding(
-                            &conn_guard,
-                            &recording_id,
-                            &project_id,
-                            analysis_type.as_str(),
-                            &analysis_content,
-                            &text,
-                            confidence_score,
-                            Some(analysis_result.processing_time_ms as i64),
-                        ) {
-                            warn!("Failed to store analysis with embedding: {}", e);
-                        } else {
-                            debug!("Stored analysis {} with embedding", analysis_type.as_str());
-                        }
-                        }
-                    }
-                }
+                //         // Store with embedding
+                //         if let Err(e) = service.store_analysis_with_embedding(
+                //             &conn_guard,
+                //             &recording_id,
+                //             &project_id,
+                //             analysis_type.as_str(),
+                //             &analysis_content,
+                //             &text,
+                //             confidence_score,
+                //             Some(analysis_result.processing_time_ms as i64),
+                //         ) {
+                //             warn!("Failed to store analysis with embedding: {}", e);
+                //         } else {
+                //             debug!("Stored analysis {} with embedding", analysis_type.as_str());
+                //         }
+                //         }
+                //     }
+                // }
 
                 results.insert(*analysis_type, analysis_result);
             },

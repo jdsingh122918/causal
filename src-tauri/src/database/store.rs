@@ -142,9 +142,9 @@ impl Database {
         conn.execute("PRAGMA temp_store=MEMORY", [])
             .map_err(|e| format!("Failed to set temp store: {}", e))?;
 
-        // Initialize embeddings schema for vector storage
-        crate::embeddings::storage::init_embeddings_schema(&conn)
-            .map_err(|e| format!("Failed to initialize embeddings schema: {}", e))?;
+        // Initialize embeddings schema for vector storage - DISABLED FOR MONGODB MIGRATION
+        // crate::embeddings::storage::init_embeddings_schema(&conn)
+        //     .map_err(|e| format!("Failed to initialize embeddings schema: {}", e))?;
 
         Ok(())
     }

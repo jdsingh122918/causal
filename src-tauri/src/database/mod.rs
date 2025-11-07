@@ -1,22 +1,25 @@
 //! # Database Layer for Project and Recording Management
 //!
-//! This module provides a SQLite-based persistence layer for managing projects and recordings
-//! in the Causal application. It features optimized database connections with WAL mode,
-//! proper transaction handling, and comprehensive CRUD operations.
+//! This module provides database persistence layers for managing projects and recordings
+//! in the Causal application. Supports both SQLite (legacy) and MongoDB (with RAG capabilities).
 //!
 //! ## Key Components
 //!
-//! - [`Database`] - Main database interface with connection pooling
-//! - [`Recording`] - Recording data model with metadata
-//! - [`models`] - Data models and structures
-//! - [`commands`] - Tauri command handlers for database operations
+//! ### SQLite (Legacy)
+//! - [`Database`] - SQLite database interface with connection pooling
+//! - WAL Mode for better concurrency, optimized for local storage
 //!
-//! ## Database Features
+//! ### MongoDB (New)
+//! - [`mongodb::MongoDatabase`] - MongoDB Atlas with vector search
+//! - RAG capabilities with Atlas VoyageAI embeddings
+//! - Cloud-native scaling and collaboration features
 //!
-//! - **WAL Mode**: Write-Ahead Logging for better concurrency
-//! - **Performance Optimized**: 64MB cache, memory temp store
-//! - **Foreign Key Support**: Proper referential integrity
-//! - **Index Optimization**: Strategic indexing for common queries
+//! ## Migration Path
+//!
+//! The application is transitioning from SQLite to MongoDB for enhanced RAG capabilities:
+//! 1. SQLite continues to work for existing installations
+//! 2. MongoDB provides vector search and semantic capabilities
+//! 3. Migration utilities help transition existing data
 //!
 //! ## Example Usage
 //!
@@ -45,6 +48,9 @@ pub mod models;
 pub mod secure_settings_commands;
 mod serde_helpers;
 pub mod store;
+
+// MongoDB integration module
+pub mod mongodb;
 
 pub use commands::*;
 pub use models::{Project, Recording, RecordingMetadata};

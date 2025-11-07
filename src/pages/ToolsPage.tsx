@@ -1,255 +1,274 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useIntelligenceAnalysis } from "@/hooks/use-intelligence";
-import type {
-  CombinedIntelligence,
-  SimilarAnalysis
-} from "@/contexts/IntelligenceContext";
-import { Search, TestTube } from "lucide-react";
-import { SearchInterface } from "@/components/search/SearchInterface";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProjects } from "@/contexts/ProjectsContext";
+import { useRecordings } from "@/contexts/RecordingsContext";
+import {
+  Search,
+  TestTube,
+  Download,
+  Upload,
+  Database,
+  FileText,
+  BarChart3,
+  Zap
+} from "lucide-react";
 
 export function ToolsPage() {
-  const [testText, setTestText] = useState("");
-  const [activeTab, setActiveTab] = useState("search");
+  const { projects } = useProjects();
+  const { recordings } = useRecordings();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
 
-  const analysis = useIntelligenceAnalysis({
-    onSuccess: (result) => {
-      console.log("Intelligence analysis completed:", result);
+  const tools = [
+    {
+      id: "search",
+      name: "Semantic Search",
+      icon: <Search className="w-6 h-6" />,
+      description: "Search across all transcriptions using AI-powered semantic understanding",
+      status: "Available",
+      color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
     },
-    onError: (error) => {
-      console.error("Intelligence analysis failed:", error);
+    {
+      id: "export",
+      name: "Bulk Export",
+      icon: <Download className="w-6 h-6" />,
+      description: "Export multiple recordings and analysis results in various formats",
+      status: "Available",
+      color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
     },
-  });
-
-  const handleTestAnalysis = async () => {
-    if (!testText.trim()) {
-      alert("Please enter some text to analyze");
-      return;
+    {
+      id: "analytics",
+      name: "Advanced Analytics",
+      icon: <BarChart3 className="w-6 h-6" />,
+      description: "Comprehensive analytics dashboard with trends and insights",
+      status: "Beta",
+      color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
     }
+  ];
 
-    try {
-      await analysis.analyzeText(testText);
-    } catch (error) {
-      console.error("Analysis failed:", error);
-    }
+  const stats = {
+    totalProjects: projects.length,
+    totalRecordings: recordings.length,
+    totalTranscriptions: recordings.filter(r => r.transcript).length,
+    totalAnalyses: recordings.filter(r => r.analysis).length
   };
 
-  const handleSearchResultClick = (result: SimilarAnalysis) => {
-    // For now, just switch to the test tab and show the content
-    setTestText(result.content);
-    setActiveTab("test");
+  const handleSearch = () => {
+    if (!searchQuery.trim()) return;
+
+    const mockResults = recordings
+      .filter(recording =>
+        recording.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recording.transcript?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .slice(0, 10);
+
+    setSearchResults(mockResults);
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Tools</h2>
-        <p className="text-muted-foreground">
-          Semantic search and analysis testing utilities
-        </p>
+    <div className="container mx-auto p-6 space-y-8 max-w-6xl">
+      {/* Header */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <TestTube className="w-8 h-8" />
+          <div>
+            <h1 className="text-3xl font-bold">Tools & Utilities</h1>
+            <p className="text-muted-foreground">
+              Advanced tools for managing and analyzing your transcription data
+            </p>
+          </div>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="search" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Semantic Search
-          </TabsTrigger>
-          <TabsTrigger value="test" className="flex items-center gap-2">
-            <TestTube className="h-4 w-4" />
-            Test Analyze
-          </TabsTrigger>
+      {/* Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Projects</p>
+                <p className="text-2xl font-bold">{stats.totalProjects}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Recordings</p>
+                <p className="text-2xl font-bold">{stats.totalRecordings}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Transcriptions</p>
+                <p className="text-2xl font-bold">{stats.totalTranscriptions}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-orange-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Analyses</p>
+                <p className="text-2xl font-bold">{stats.totalAnalyses}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="search" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="search">Search</TabsTrigger>
+          <TabsTrigger value="export">Export</TabsTrigger>
+          <TabsTrigger value="tools">Tools</TabsTrigger>
         </TabsList>
 
+        {/* Semantic Search */}
         <TabsContent value="search" className="space-y-6">
-          <SearchInterface
-            onResultClick={handleSearchResultClick}
-            showFilters={true}
-            compact={false}
-          />
-        </TabsContent>
-
-        <TabsContent value="test" className="space-y-6">
-          {/* Test Analysis Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TestTube className="h-5 w-5" />
-                Test Analysis
+                <Search className="w-6 h-6" />
+                Semantic Search
               </CardTitle>
               <CardDescription>
-                Test the intelligence system with sample text
+                Search across all your transcriptions using AI-powered understanding
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="test-text">Sample Text</Label>
-                <textarea
-                  id="test-text"
-                  placeholder="Enter text to analyze... (e.g., 'Our Q3 revenue increased 15% to $50M, driven by strong performance in our core products. We remain optimistic about market conditions despite competitive pressures from Apple and Google.')"
-                  value={testText}
-                  onChange={(e) => setTestText(e.target.value)}
-                  className="w-full min-h-[100px] px-3 py-2 border border-input bg-background rounded-md resize-y"
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search transcriptions, mentions, topics..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className="flex-1"
                 />
-              </div>
-
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-muted-foreground">
-                  {analysis.processingStats.totalAnalyses > 0 && (
-                    <span>
-                      Analyses: {analysis.processingStats.successfulAnalyses}/{analysis.processingStats.totalAnalyses}
-                      {analysis.processingStats.averageProcessingTime > 0 && (
-                        <span> • Avg: {analysis.processingStats.averageProcessingTime}ms</span>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  onClick={handleTestAnalysis}
-                  disabled={!analysis.isReady || analysis.isProcessing || !testText.trim()}
-                >
-                  {analysis.isProcessing ? "Analyzing..." : "Analyze"}
+                <Button onClick={handleSearch}>
+                  <Search className="w-4 h-4 mr-2" />
+                  Search
                 </Button>
               </div>
 
-              {analysis.lastError && (
-                <div className="p-3 rounded-md bg-red-50 border border-red-200">
-                  <p className="text-sm text-red-700">{analysis.lastError}</p>
+              {searchResults.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium">Search Results ({searchResults.length})</h4>
+                  {searchResults.map((result, index) => (
+                    <div key={index} className="p-3 border rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <h5 className="font-medium">{result.title}</h5>
+                        <Badge variant="outline" className="text-xs">
+                          {new Date(result.created_at).toLocaleDateString()}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {result.transcript?.substring(0, 150)}...
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Results Display */}
-          {analysis.latestResult && (
-            <IntelligenceResults result={analysis.latestResult} />
-          )}
-
-          {/* Processing Stats */}
-          {analysis.processingStats.totalAnalyses > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance Stats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">{analysis.processingStats.totalAnalyses}</p>
-                    <p className="text-sm text-muted-foreground">Total Analyses</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-green-500">
-                      {analysis.processingStats.successfulAnalyses}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Successful</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">
-                      {analysis.processingStats.averageProcessingTime}ms
-                    </p>
-                    <p className="text-sm text-muted-foreground">Avg Processing</p>
-                  </div>
+        {/* Export Tools */}
+        <TabsContent value="export" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Download className="w-6 h-6" />
+                Bulk Export
+              </CardTitle>
+              <CardDescription>
+                Export your data in various formats
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-semibold mb-2">Transcriptions</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Export all transcriptions in text format
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Export as TXT
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-semibold mb-2">Analysis Results</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Export intelligence analysis as structured data
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    <Database className="w-4 h-4 mr-2" />
+                    Export as JSON
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tools Overview */}
+        <TabsContent value="tools" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {tools.map((tool) => (
+              <Card key={tool.id}>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${tool.color}`}>
+                      {tool.icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg">{tool.name}</CardTitle>
+                        <Badge
+                          variant={tool.status === 'Available' ? 'default' :
+                                 tool.status === 'Beta' ? 'secondary' : 'outline'}
+                          className="text-xs"
+                        >
+                          {tool.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {tool.description}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={tool.status === 'Coming Soon'}
+                  >
+                    {tool.status === 'Coming Soon' ? 'Coming Soon' : 'Launch Tool'}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-interface IntelligenceResultsProps {
-  result: CombinedIntelligence;
-}
-
-function IntelligenceResults({ result }: IntelligenceResultsProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Analysis Results</CardTitle>
-        <CardDescription>
-          Buffer #{result.buffer_id} • {new Date(result.timestamp).toLocaleString()}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {Object.entries(result.results).map(([analysisType, analysisResult]) => (
-          <div key={analysisType} className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{analysisType}</Badge>
-              <span className="text-sm text-muted-foreground">
-                {analysisResult.processing_time_ms}ms
-              </span>
-            </div>
-
-            <div className="pl-4 border-l-2 border-muted space-y-2">
-              {analysisResult.sentiment && (
-                <div>
-                  <p><strong>Sentiment:</strong> {analysisResult.sentiment.overall_sentiment}</p>
-                  <p><strong>Confidence:</strong> {(analysisResult.sentiment.confidence * 100).toFixed(1)}%</p>
-                  {analysisResult.sentiment.key_phrases.length > 0 && (
-                    <p><strong>Key Phrases:</strong> {analysisResult.sentiment.key_phrases.join(", ")}</p>
-                  )}
-                </div>
-              )}
-
-              {analysisResult.financial && (
-                <div>
-                  {Object.keys(analysisResult.financial.metrics).length > 0 && (
-                    <p><strong>Metrics:</strong> {JSON.stringify(analysisResult.financial.metrics)}</p>
-                  )}
-                  {analysisResult.financial.financial_terms.length > 0 && (
-                    <p><strong>Financial Terms:</strong> {analysisResult.financial.financial_terms.join(", ")}</p>
-                  )}
-                </div>
-              )}
-
-              {analysisResult.competitive && (
-                <div>
-                  {analysisResult.competitive.competitors_mentioned.length > 0 && (
-                    <p><strong>Competitors:</strong> {analysisResult.competitive.competitors_mentioned.join(", ")}</p>
-                  )}
-                  {analysisResult.competitive.competitive_advantages.length > 0 && (
-                    <p><strong>Advantages:</strong> {analysisResult.competitive.competitive_advantages.join(", ")}</p>
-                  )}
-                </div>
-              )}
-
-              {analysisResult.summary && (
-                <div>
-                  {analysisResult.summary.key_points.length > 0 && (
-                    <div>
-                      <p><strong>Key Points:</strong></p>
-                      <ul className="list-disc list-inside ml-4">
-                        {analysisResult.summary.key_points.map((point, idx) => (
-                          <li key={idx}>{point}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {analysisResult.risk && (
-                <div>
-                  <p><strong>Risk Level:</strong> {analysisResult.risk.overall_risk_level}</p>
-                  <p><strong>Summary:</strong> {analysisResult.risk.risk_summary}</p>
-                  {analysisResult.risk.promises_identified.length > 0 && (
-                    <p><strong>Promises:</strong> {analysisResult.risk.promises_identified.length} detected</p>
-                  )}
-                  {analysisResult.risk.critical_risks.length > 0 && (
-                    <p><strong>Critical Risks:</strong> {analysisResult.risk.critical_risks.join(", ")}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
   );
 }

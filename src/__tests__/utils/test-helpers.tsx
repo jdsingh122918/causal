@@ -123,7 +123,7 @@ export function createMockSettings(overrides?: MockSettings): MockSettings {
     assembly_ai_api_key: 'test-assembly-key',
     claude_api_key: 'test-claude-key',
     refinement_mode: 'chunked',
-    chunk_duration_secs: 10,
+    chunk_duration_secs: 15,
     selected_device_index: 0,
     ...overrides,
   };

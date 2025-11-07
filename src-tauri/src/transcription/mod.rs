@@ -39,7 +39,7 @@ impl Default for RefinementConfig {
     fn default() -> Self {
         Self {
             mode: RefinementMode::Chunked,
-            chunk_duration_secs: 10,
+            chunk_duration_secs: 15,
         }
     }
 }

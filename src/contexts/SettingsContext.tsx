@@ -84,7 +84,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [refinementConfig, setRefinementConfig] = useState<RefinementConfig>({
     mode: "disabled",
-    chunk_duration_secs: 1, // Optimal for real-time turn-by-turn processing
+    chunk_duration_secs: 15, // Optimal balance between latency and processing efficiency
   });
   const [isLoading, setIsLoading] = useState(false);
 

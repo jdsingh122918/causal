@@ -49,7 +49,7 @@ function ProjectView() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Recordings for {currentProject.name}</h2>
         <div className="flex items-center gap-2">
-          <ProjectIntelligenceSettings projectId={currentProject.id} />
+          <ProjectIntelligenceSettings />
           {isIntelligenceEnabled && (
             <span className="text-sm text-muted-foreground bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded-full">
               Intelligence Enabled

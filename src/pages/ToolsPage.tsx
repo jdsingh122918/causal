@@ -10,11 +10,9 @@ import {
   Search,
   TestTube,
   Download,
-  Upload,
   Database,
   FileText,
-  BarChart3,
-  Zap
+  BarChart3
 } from "lucide-react";
 
 export function ToolsPage() {
@@ -53,8 +51,8 @@ export function ToolsPage() {
   const stats = {
     totalProjects: projects.length,
     totalRecordings: recordings.length,
-    totalTranscriptions: recordings.filter(r => r.transcript).length,
-    totalAnalyses: recordings.filter(r => r.analysis).length
+    totalTranscriptions: recordings.filter(r => r.raw_transcript).length,
+    totalAnalyses: recordings.filter(r => r.summary !== null).length
   };
 
   const handleSearch = () => {
@@ -62,8 +60,8 @@ export function ToolsPage() {
 
     const mockResults = recordings
       .filter(recording =>
-        recording.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        recording.transcript?.toLowerCase().includes(searchQuery.toLowerCase())
+        recording.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recording.raw_transcript?.toLowerCase().includes(searchQuery.toLowerCase())
       )
       .slice(0, 10);
 
@@ -173,13 +171,13 @@ export function ToolsPage() {
                   {searchResults.map((result, index) => (
                     <div key={index} className="p-3 border rounded-lg">
                       <div className="flex justify-between items-start mb-2">
-                        <h5 className="font-medium">{result.title}</h5>
+                        <h5 className="font-medium">{result.name}</h5>
                         <Badge variant="outline" className="text-xs">
                           {new Date(result.created_at).toLocaleDateString()}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">
-                        {result.transcript?.substring(0, 150)}...
+                        {result.raw_transcript?.substring(0, 150)}...
                       </p>
                     </div>
                   ))}

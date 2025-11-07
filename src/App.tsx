@@ -11,13 +11,13 @@ import { RecordingHistory } from "@/components/recording/RecordingHistory";
 import { SettingsPanel } from "@/components/panels/SettingsPanel";
 import { DiagnosticsPanel } from "@/components/panels/DiagnosticsPanel";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
-import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
-import { HelpPage } from "@/pages/HelpPage";
-import { IntelligenceGrid } from "@/components/intelligence/IntelligenceGrid";
+// import { RecordingDetailsPage } from "@/pages/RecordingDetailsPage";
+// import { HelpPage } from "@/pages/HelpPage";
+// import { IntelligenceGrid } from "@/components/intelligence/IntelligenceGrid";
 import { IntelligenceSidebar } from "@/components/intelligence/IntelligenceSidebar";
 import { ProjectIntelligenceSettings } from "@/components/settings/ProjectIntelligenceSettings";
-import { IntelligenceSettingsPage } from "@/pages/IntelligenceSettingsPage";
-import { ToolsPage } from "@/pages/ToolsPage";
+// import { IntelligenceSettingsPage } from "@/pages/IntelligenceSettingsPage";
+// import { ToolsPage } from "@/pages/ToolsPage";
 
 function ProjectView() {
   const { currentProject, getProjectIntelligence } = useProjects();
@@ -103,12 +103,12 @@ function App() {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<ProjectView />} />
-          <Route path="/recordings/:recordingId" element={<RecordingDetailsPage />} />
-          <Route path="/tools" element={<ToolsPage />} />
-          <Route path="/intelligence/settings" element={<IntelligenceSettingsPage />} />
+          {/* <Route path="/recordings/:recordingId" element={<RecordingDetailsPage />} /> */}
+          {/* <Route path="/tools" element={<ToolsPage />} /> */}
+          {/* <Route path="/intelligence/settings" element={<IntelligenceSettingsPage />} /> */}
           <Route path="/settings" element={<SettingsPanel />} />
           <Route path="/diagnostics" element={<DiagnosticsPanel />} />
-          <Route path="/help" element={<HelpPage />} />
+          {/* <Route path="/help" element={<HelpPage />} /> */}
         </Routes>
       </ErrorBoundary>
     </AppLayout>

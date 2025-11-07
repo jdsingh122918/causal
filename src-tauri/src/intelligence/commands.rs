@@ -129,6 +129,7 @@ pub fn initialize_intelligence_system(
     coordinator.validate_setup()?;
 
     state.coordinator = Some(Arc::new(Mutex::new(coordinator)));
+    state.is_running = true;
 
     info!("✅ Intelligence system initialized successfully");
     Ok("Intelligence system initialized successfully".to_string())

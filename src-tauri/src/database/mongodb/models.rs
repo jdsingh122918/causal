@@ -26,6 +26,21 @@ pub struct MongoProject {
     pub updated_at: DateTime<Utc>,
 }
 
+impl MongoProject {
+    pub fn new(name: String, description: Option<String>) -> Self {
+        Self {
+            _id: None,
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            description: description.unwrap_or_default(),
+            api_key_reference: None,
+            settings: ProjectSettings::default(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+}
+
 /// Project settings including RAG configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectSettings {
@@ -116,6 +131,27 @@ pub struct MongoRecording {
     pub embedding: Option<Vec<f32>>,
 }
 
+impl MongoRecording {
+    pub fn new(project_id: String, name: String) -> Self {
+        Self {
+            _id: None,
+            id: uuid::Uuid::new_v4().to_string(),
+            project_id,
+            name,
+            raw_transcript: String::new(),
+            enhanced_transcript: String::new(),
+            summary: None,
+            key_points: Vec::new(),
+            action_items: Vec::new(),
+            metadata: RecordingMetadata::default(),
+            chunks: Vec::new(),
+            status: RecordingStatus::Recording,
+            created_at: Utc::now(),
+            embedding: None,
+        }
+    }
+}
+
 /// Enhanced recording metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingMetadata {
@@ -137,6 +173,23 @@ pub struct RecordingMetadata {
     /// Quality metrics
     pub audio_quality: Option<f32>,
     pub transcription_quality: Option<f32>,
+}
+
+impl Default for RecordingMetadata {
+    fn default() -> Self {
+        Self {
+            duration_seconds: 0.0,
+            word_count: 0,
+            chunk_count: 0,
+            turn_count: 0,
+            average_confidence: 0.0,
+            topics: Vec::new(),
+            sentiment_score: None,
+            language: "en".to_string(),
+            audio_quality: None,
+            transcription_quality: None,
+        }
+    }
 }
 
 /// Text chunk for granular search and retrieval

@@ -6,6 +6,7 @@
 use super::{MongoDatabase, MongoError, MongoResult, AtlasVectorSearch};
 use super::models::*;
 use crate::database::{Database as SqliteDatabase, models as sqlite_models};
+use bson::doc;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{info, debug, warn, error};
@@ -179,10 +180,13 @@ impl MigrationService {
         // Extract topics (placeholder implementation)
         mongo_recording.metadata.topics = self.extract_topics(&sqlite_recording.enhanced_transcript);
 
+        // Store chunks count before moving the recording
+        let chunks_count = mongo_recording.chunks.len() as u32;
+
         // Create the recording
         collection.create(mongo_recording).await?;
 
-        Ok(mongo_recording.chunks.len() as u32 + 1) // chunks + main embedding
+        Ok(chunks_count + 1) // chunks + main embedding
     }
 
     /// Generate text chunks with embeddings from transcript
@@ -264,7 +268,7 @@ impl MigrationService {
         let mut result = KnowledgeGenerationResult::new();
 
         // Get all projects to generate knowledge for each
-        let projects = self.mongo_db.projects().find(None, None).await?;
+        let mut projects = self.mongo_db.projects().find(doc! {}).await?;
         let knowledge_collection = super::collections::KnowledgeBaseCollection::new(&self.mongo_db);
 
         use futures_util::stream::StreamExt;
@@ -294,8 +298,8 @@ impl MigrationService {
         let mut created_count = 0;
 
         // Get all recordings for this project
-        let recordings = self.mongo_db.recordings()
-            .find(bson::doc! {"project_id": &project.id}, None)
+        let mut recordings = self.mongo_db.recordings()
+            .find(bson::doc! {"project_id": &project.id})
             .await?;
 
         use futures_util::stream::StreamExt;
@@ -371,7 +375,7 @@ impl MigrationService {
             .map_err(|e| MongoError::Migration(format!("Failed to count SQLite projects: {}", e)))?;
         let sqlite_project_count = sqlite_projects.len() as u32;
 
-        let mongo_project_count = self.mongo_db.projects().estimated_document_count(None).await? as u32;
+        let mongo_project_count = self.mongo_db.projects().estimated_document_count().await? as u32;
 
         // Count recordings by iterating through projects
         let mut sqlite_recording_count = 0u32;
@@ -381,7 +385,7 @@ impl MigrationService {
             sqlite_recording_count += recordings.len() as u32;
         }
 
-        let mongo_recording_count = self.mongo_db.recordings().estimated_document_count(None).await? as u32;
+        let mongo_recording_count = self.mongo_db.recordings().estimated_document_count().await? as u32;
 
         validation_report.projects_sqlite = sqlite_project_count;
         validation_report.projects_mongo = mongo_project_count;

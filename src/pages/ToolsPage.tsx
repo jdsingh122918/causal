@@ -1,34 +1,47 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useRecordings } from "@/contexts/RecordingsContext";
+import { SemanticSearchInterface } from "@/components/search/SemanticSearchInterface";
+import { MigrationProgressDialog } from "@/components/migration/MigrationProgressDialog";
 import {
-  Search,
   TestTube,
   Download,
   Database,
   FileText,
-  BarChart3
+  BarChart3,
+  ArrowUpRight,
+  Zap,
+  Brain,
+  Upload
 } from "lucide-react";
 
 export function ToolsPage() {
   const { projects } = useProjects();
   const { recordings } = useRecordings();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [migrationDialogOpen, setMigrationDialogOpen] = useState(false);
 
   const tools = [
     {
-      id: "search",
-      name: "Semantic Search",
-      icon: <Search className="w-6 h-6" />,
-      description: "Search across all transcriptions using AI-powered semantic understanding",
+      id: "semantic-search",
+      name: "AI Semantic Search",
+      icon: <Brain className="w-6 h-6" />,
+      description: "Search across recordings using MongoDB Atlas Vector Search with VoyageAI embeddings",
       status: "Available",
-      color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+      color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+      action: () => {} // Navigate to search tab
+    },
+    {
+      id: "mongodb-migration",
+      name: "MongoDB Migration",
+      icon: <Upload className="w-6 h-6" />,
+      description: "Migrate your data to MongoDB Atlas with RAG capabilities",
+      status: "Available",
+      color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      action: () => setMigrationDialogOpen(true)
     },
     {
       id: "export",
@@ -36,7 +49,8 @@ export function ToolsPage() {
       icon: <Download className="w-6 h-6" />,
       description: "Export multiple recordings and analysis results in various formats",
       status: "Available",
-      color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+      color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+      action: () => {} // Navigate to export tab
     },
     {
       id: "analytics",
@@ -44,7 +58,8 @@ export function ToolsPage() {
       icon: <BarChart3 className="w-6 h-6" />,
       description: "Comprehensive analytics dashboard with trends and insights",
       status: "Beta",
-      color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+      color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+      action: () => {}
     }
   ];
 
@@ -53,19 +68,6 @@ export function ToolsPage() {
     totalRecordings: recordings.length,
     totalTranscriptions: recordings.filter(r => r.raw_transcript).length,
     totalAnalyses: recordings.filter(r => r.summary !== null).length
-  };
-
-  const handleSearch = () => {
-    if (!searchQuery.trim()) return;
-
-    const mockResults = recordings
-      .filter(recording =>
-        recording.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        recording.raw_transcript?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-      .slice(0, 10);
-
-    setSearchResults(mockResults);
   };
 
   return (
@@ -132,57 +134,127 @@ export function ToolsPage() {
       </div>
 
       <Tabs defaultValue="search" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="search">Search</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="search">AI Search</TabsTrigger>
+          <TabsTrigger value="migration">Migration</TabsTrigger>
           <TabsTrigger value="export">Export</TabsTrigger>
           <TabsTrigger value="tools">Tools</TabsTrigger>
         </TabsList>
 
-        {/* Semantic Search */}
+        {/* AI Semantic Search */}
         <TabsContent value="search" className="space-y-6">
+          <SemanticSearchInterface
+            onRecordingClick={(recording) => {
+              console.log("Recording clicked:", recording);
+              // Could navigate to recording details
+            }}
+            onKnowledgeClick={(knowledge) => {
+              console.log("Knowledge clicked:", knowledge);
+              // Could navigate to knowledge details
+            }}
+          />
+        </TabsContent>
+
+        {/* MongoDB Migration */}
+        <TabsContent value="migration" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Search className="w-6 h-6" />
-                Semantic Search
+                <Database className="w-6 h-6" />
+                MongoDB Atlas Migration
               </CardTitle>
               <CardDescription>
-                Search across all your transcriptions using AI-powered understanding
+                Migrate your SQLite data to MongoDB Atlas with enhanced RAG capabilities
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Search transcriptions, mentions, topics..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="flex-1"
-                />
-                <Button onClick={handleSearch}>
-                  <Search className="w-4 h-4 mr-2" />
-                  Search
-                </Button>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Database className="w-5 h-5 text-blue-600" />
+                    <h4 className="font-semibold">Current Database</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    SQLite database with {stats.totalProjects} projects and {stats.totalRecordings} recordings
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex justify-between">
+                      <span>Projects:</span>
+                      <Badge variant="outline">{stats.totalProjects}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Recordings:</span>
+                      <Badge variant="outline">{stats.totalRecordings}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 border rounded-lg border-green-200 bg-green-50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-5 h-5 text-green-600" />
+                    <h4 className="font-semibold text-green-800">MongoDB Atlas</h4>
+                  </div>
+                  <p className="text-sm text-green-700 mb-3">
+                    Cloud database with AI-powered semantic search and RAG capabilities
+                  </p>
+                  <div className="space-y-1 text-xs text-green-700">
+                    <div className="flex items-center gap-1">
+                      <ArrowUpRight className="w-3 h-3" />
+                      VoyageAI embeddings for semantic search
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ArrowUpRight className="w-3 h-3" />
+                      Vector similarity matching
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ArrowUpRight className="w-3 h-3" />
+                      Enhanced AI context retrieval
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {searchResults.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="font-medium">Search Results ({searchResults.length})</h4>
-                  {searchResults.map((result, index) => (
-                    <div key={index} className="p-3 border rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <h5 className="font-medium">{result.name}</h5>
-                        <Badge variant="outline" className="text-xs">
-                          {new Date(result.created_at).toLocaleDateString()}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {result.raw_transcript?.substring(0, 150)}...
-                      </p>
+              <div className="space-y-4">
+                <h4 className="font-medium">Migration Process</h4>
+                <div className="grid gap-3">
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <span className="text-sm font-medium text-blue-600">1</span>
                     </div>
-                  ))}
+                    <div>
+                      <p className="font-medium text-sm">Data Migration</p>
+                      <p className="text-xs text-muted-foreground">Copy projects and recordings to MongoDB</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                      <span className="text-sm font-medium text-green-600">2</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Embedding Generation</p>
+                      <p className="text-xs text-muted-foreground">Generate VoyageAI embeddings for semantic search</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                      <span className="text-sm font-medium text-purple-600">3</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Verification</p>
+                      <p className="text-xs text-muted-foreground">Validate data integrity and completeness</p>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <Button
+                onClick={() => setMigrationDialogOpen(true)}
+                className="w-full gap-2"
+                size="lg"
+              >
+                <Upload className="w-4 h-4" />
+                Start Migration to MongoDB Atlas
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -258,6 +330,7 @@ export function ToolsPage() {
                     variant="outline"
                     className="w-full"
                     disabled={tool.status === 'Coming Soon'}
+                    onClick={tool.action}
                   >
                     {tool.status === 'Coming Soon' ? 'Coming Soon' : 'Launch Tool'}
                   </Button>
@@ -267,6 +340,12 @@ export function ToolsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Migration Dialog */}
+      <MigrationProgressDialog
+        open={migrationDialogOpen}
+        onOpenChange={setMigrationDialogOpen}
+      />
     </div>
   );
 }

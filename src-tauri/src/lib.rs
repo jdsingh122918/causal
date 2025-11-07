@@ -39,6 +39,7 @@ mod transcription;
 pub mod test_utils;
 
 use database::Database;
+use database::mongodb::MongoAppState;
 // use embeddings::commands::EmbeddingsState;  // Temporarily disabled for MongoDB migration
 // Note: Error types available for future use
 // use error::{CausalError, CausalResult};
@@ -241,6 +242,7 @@ pub fn run() {
         metrics,
     });
     let intelligence_state = Mutex::new(IntelligenceState::default());
+    let mongo_state = Mutex::new(MongoAppState::default());
     // let embeddings_state = Mutex::new(EmbeddingsState::default());  // Disabled for MongoDB migration
 
     tauri::Builder::default()
@@ -321,6 +323,7 @@ pub fn run() {
         .manage(database)
         .manage(logging_state)
         .manage(intelligence_state)
+        .manage(mongo_state)
         // .manage(embeddings_state)  // Disabled for MongoDB migration
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -386,6 +389,35 @@ pub fn run() {
             intelligence::get_available_analysis_types,
             intelligence::clear_intelligence_system,
             intelligence::test_intelligence_connectivity,
+            // MongoDB RAG-enabled commands
+            database::mongodb::commands::initialize_mongo_database,
+            database::mongodb::commands::is_mongo_initialized,
+            database::mongodb::commands::get_mongo_status,
+            database::mongodb::commands::mongo_create_project,
+            database::mongodb::commands::mongo_list_projects,
+            database::mongodb::commands::mongo_get_project,
+            database::mongodb::commands::mongo_delete_project,
+            database::mongodb::commands::mongo_create_recording,
+            database::mongodb::commands::mongo_list_recordings,
+            database::mongodb::commands::mongo_get_recording,
+            database::mongodb::commands::semantic_search_recordings,
+            database::mongodb::commands::get_analysis_context,
+            database::mongodb::commands::search_knowledge_base,
+            database::mongodb::commands::migrate_sqlite_to_mongo,
+            database::mongodb::commands::validate_migration,
+            // MongoDB configuration management commands
+            database::mongodb::commands::test_mongo_connection,
+            database::mongodb::commands::load_mongo_config,
+            database::mongodb::commands::save_mongo_config,
+            database::mongodb::commands::setup_mongo_indexes,
+            database::mongodb::commands::validate_mongo_setup,
+            // MongoDB production monitoring commands
+            database::mongodb::commands::initialize_mongo_monitoring,
+            database::mongodb::commands::get_mongo_system_health,
+            database::mongodb::commands::is_mongo_monitoring_active,
+            database::mongodb::commands::stop_mongo_monitoring,
+            database::mongodb::commands::record_mongo_error,
+            database::mongodb::commands::get_mongo_monitoring_config,
             // Embeddings and semantic search commands - DISABLED FOR MONGODB MIGRATION
             // embeddings::initialize_embeddings_service,
             // embeddings::is_embeddings_initialized,

@@ -5,15 +5,23 @@
 
 pub mod client;
 pub mod collections;
-pub mod models;
+pub mod commands;
+pub mod config;
 pub mod migrations;
+pub mod models;
 pub mod vector_search;
+pub mod performance;
+pub mod monitoring;
 
 // Re-export key types for easier access
 pub use client::MongoDatabase;
 pub use models::*;
 pub use collections::{ProjectCollection, RecordingCollection, KnowledgeBaseCollection};
 pub use vector_search::AtlasVectorSearch;
+pub use commands::MongoAppState;
+pub use config::{MongoConfigManager, ConnectionTestResult, IndexSetupResult, SetupValidationResult};
+pub use performance::{PerformanceOptimizer, PerformanceConfig, PerformanceMetrics, HealthStatus};
+pub use monitoring::{ProductionMonitor, MonitoringConfig, SystemHealth, AlertingSystem};
 
 use std::collections::HashMap;
 
@@ -29,6 +37,10 @@ pub struct MongoConfig {
 /// Vector search configuration for Atlas
 #[derive(Debug, Clone)]
 pub struct VectorSearchConfig {
+    pub project_id: String,
+    pub cluster_name: String,
+    pub database_name: String,
+    pub search_index_name: String,
     pub embedding_model: String,     // "voyage-2" or "voyage-code-2"
     pub dimensions: usize,           // 1536 for VoyageAI
     pub similarity_threshold: f32,   // 0.7
@@ -40,6 +52,10 @@ pub struct VectorSearchConfig {
 impl Default for VectorSearchConfig {
     fn default() -> Self {
         Self {
+            project_id: "".to_string(),
+            cluster_name: "".to_string(),
+            database_name: "".to_string(),
+            search_index_name: "vector_index".to_string(),
             embedding_model: "voyage-2".to_string(),
             dimensions: 1536,
             similarity_threshold: 0.7,
@@ -55,6 +71,12 @@ impl Default for VectorSearchConfig {
 pub enum MongoError {
     #[error("Connection error: {0}")]
     Connection(#[from] mongodb::error::Error),
+
+    #[error("Authentication error: {0}")]
+    Authentication(String),
+
+    #[error("Database error: {0}")]
+    Database(String),
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] bson::ser::Error),

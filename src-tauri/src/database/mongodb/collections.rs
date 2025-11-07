@@ -27,10 +27,13 @@ impl ProjectCollection {
         project.created_at = Utc::now();
         project.updated_at = project.created_at;
 
-        let result = self.collection.insert_one(project).await?;
+        let project_name = project.name.clone();
+        let project_id = project.id.clone();
+
+        let result = self.collection.insert_one(&project).await?;
         project._id = result.inserted_id.as_object_id();
 
-        debug!("Created project: {} ({})", project.name, project.id);
+        debug!("Created project: {} ({})", project_name, project_id);
         Ok(project)
     }
 
@@ -54,7 +57,7 @@ impl ProjectCollection {
             .sort(doc! {"created_at": -1})
             .build();
 
-        let mut cursor = self.collection.find(None, options).await?;
+        let mut cursor = self.collection.find(doc! {}).with_options(options).await?;
         let mut projects = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -68,7 +71,7 @@ impl ProjectCollection {
     /// Update project
     pub async fn update(&self, id: &str, updates: Document) -> MongoResult<bool> {
         let mut update_doc = updates;
-        update_doc.insert("updated_at", Utc::now());
+        update_doc.insert("updated_at", bson::DateTime::now());
 
         let filter = doc! {"id": id};
         let update = doc! {"$set": update_doc};
@@ -101,10 +104,13 @@ impl RecordingCollection {
     pub async fn create(&self, mut recording: MongoRecording) -> MongoResult<MongoRecording> {
         recording.created_at = Utc::now();
 
-        let result = self.collection.insert_one(recording).await?;
+        let recording_name = recording.name.clone();
+        let recording_project_id = recording.project_id.clone();
+
+        let result = self.collection.insert_one(&recording).await?;
         recording._id = result.inserted_id.as_object_id();
 
-        debug!("Created recording: {} for project: {}", recording.name, recording.project_id);
+        debug!("Created recording: {} for project: {}", recording_name, recording_project_id);
         Ok(recording)
     }
 
@@ -122,7 +128,7 @@ impl RecordingCollection {
             .sort(doc! {"created_at": -1})
             .build();
 
-        let mut cursor = self.collection.find(filter, options).await?;
+        let mut cursor = self.collection.find(filter).with_options(options).await?;
         let mut recordings = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -149,8 +155,8 @@ impl RecordingCollection {
         // Date range filter
         if let Some(ref date_range) = filters.date_range {
             filter_doc.insert("created_at", doc! {
-                "$gte": date_range.start,
-                "$lte": date_range.end
+                "$gte": bson::DateTime::from_system_time(date_range.start.into()),
+                "$lte": bson::DateTime::from_system_time(date_range.end.into())
             });
         }
 
@@ -167,7 +173,7 @@ impl RecordingCollection {
             .limit(50) // Limit results for performance
             .build();
 
-        let mut cursor = self.collection.find(filter_doc, options).await?;
+        let mut cursor = self.collection.find(filter_doc).with_options(options).await?;
         let mut recordings = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -190,7 +196,13 @@ impl RecordingCollection {
     /// Update recording status
     pub async fn update_status(&self, id: &str, status: RecordingStatus) -> MongoResult<bool> {
         let filter = doc! {"id": id};
-        let update = doc! {"$set": {"status": status}};
+        let status_str = match status {
+            RecordingStatus::Recording => "recording",
+            RecordingStatus::Processing => "processing",
+            RecordingStatus::Completed => "completed",
+            RecordingStatus::Failed => "failed",
+        };
+        let update = doc! {"$set": {"status": status_str}};
 
         let result = self.collection.update_one(filter, update).await?;
         Ok(result.modified_count > 0)
@@ -236,11 +248,14 @@ impl AnalysisResultCollection {
     pub async fn create(&self, mut analysis: MongoAnalysisResult) -> MongoResult<MongoAnalysisResult> {
         analysis.timestamp = Utc::now();
 
-        let result = self.collection.insert_one(analysis).await?;
+        let analysis_type = analysis.analysis_type.clone();
+        let recording_id = analysis.recording_id.clone();
+
+        let result = self.collection.insert_one(&analysis).await?;
         analysis._id = result.inserted_id.as_object_id();
 
         debug!("Created analysis result: {} for recording: {}",
-               analysis.analysis_type, analysis.recording_id);
+               analysis_type, recording_id);
         Ok(analysis)
     }
 
@@ -251,7 +266,7 @@ impl AnalysisResultCollection {
             .sort(doc! {"timestamp": -1})
             .build();
 
-        let mut cursor = self.collection.find(filter, options).await?;
+        let mut cursor = self.collection.find(filter).with_options(options).await?;
         let mut results = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -273,15 +288,17 @@ impl AnalysisResultCollection {
             "project_id": project_id
         };
 
-        let mut options_builder = FindOptions::builder()
-            .sort(doc! {"timestamp": -1});
-
-        if let Some(limit) = limit {
-            options_builder = options_builder.limit(limit);
-        }
-
-        let options = options_builder.build();
-        let mut cursor = self.collection.find(filter, options).await?;
+        let options = if let Some(limit) = limit {
+            FindOptions::builder()
+                .sort(doc! {"timestamp": -1})
+                .limit(limit)
+                .build()
+        } else {
+            FindOptions::builder()
+                .sort(doc! {"timestamp": -1})
+                .build()
+        };
+        let mut cursor = self.collection.find(filter).with_options(options).await?;
         let mut results = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -311,11 +328,14 @@ impl KnowledgeBaseCollection {
         entry.created_at = now;
         entry.updated_at = now;
 
-        let result = self.collection.insert_one(entry).await?;
+        let entry_title = entry.title.clone();
+        let entry_project_id = entry.project_id.clone();
+
+        let result = self.collection.insert_one(&entry).await?;
         entry._id = result.inserted_id.as_object_id();
 
         debug!("Created knowledge base entry: {} for project: {}",
-               entry.title, entry.project_id);
+               entry_title, entry_project_id);
         Ok(entry)
     }
 
@@ -333,7 +353,7 @@ impl KnowledgeBaseCollection {
             .sort(doc! {"created_at": -1})
             .build();
 
-        let mut cursor = self.collection.find(filter, options).await?;
+        let mut cursor = self.collection.find(filter).with_options(options).await?;
         let mut entries = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -359,7 +379,7 @@ impl KnowledgeBaseCollection {
             .limit(20)
             .build();
 
-        let mut cursor = self.collection.find(filter, options).await?;
+        let mut cursor = self.collection.find(filter).with_options(options).await?;
         let mut entries = Vec::new();
 
         use futures_util::stream::StreamExt;
@@ -373,7 +393,7 @@ impl KnowledgeBaseCollection {
     /// Update entry
     pub async fn update(&self, id: &str, updates: Document) -> MongoResult<bool> {
         let mut update_doc = updates;
-        update_doc.insert("updated_at", Utc::now());
+        update_doc.insert("updated_at", bson::DateTime::now());
 
         let filter = doc! {"id": id};
         let update = doc! {"$set": update_doc};

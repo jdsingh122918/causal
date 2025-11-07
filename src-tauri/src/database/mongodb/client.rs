@@ -267,13 +267,13 @@ impl MongoDatabase {
         use bson::doc;
 
         let stats_doc = self.database
-            .run_command(doc! {"dbStats": 1}, None)
+            .run_command(doc! {"dbStats": 1})
             .await?;
 
-        let projects_count = self.projects().estimated_document_count(None).await? as u32;
-        let recordings_count = self.recordings().estimated_document_count(None).await? as u32;
-        let analysis_count = self.analysis_results().estimated_document_count(None).await? as u32;
-        let knowledge_count = self.knowledge_base().estimated_document_count(None).await? as u32;
+        let projects_count = self.projects().estimated_document_count().await? as u32;
+        let recordings_count = self.recordings().estimated_document_count().await? as u32;
+        let analysis_count = self.analysis_results().estimated_document_count().await? as u32;
+        let knowledge_count = self.knowledge_base().estimated_document_count().await? as u32;
 
         Ok(DatabaseStats {
             projects_count,

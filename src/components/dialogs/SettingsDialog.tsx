@@ -25,6 +25,7 @@ import { RefinementMode } from "@/lib/types";
 import { toast } from "sonner";
 import { Mic, Key, Sparkles, Save, X, RefreshCw } from "lucide-react";
 import { logger } from "@/utils/logger";
+import { MongoDbConfigSection } from "@/components/settings/MongoDbConfigSection";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -109,7 +110,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     try {
       setLoading(true);
       saveSettings({
-        selected_device_id: localDeviceId || null,
+        selected_device_id: localDeviceId && localDeviceId !== "__no_devices__" ? localDeviceId : null,
         assembly_api_key: localAssemblyKey,
         claude_api_key: localClaudeKey,
         refinement_config: {
@@ -178,15 +179,17 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 </SelectTrigger>
                 <SelectContent position="popper" align="start" className="z-[110]">
                   {audioDevices.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="__no_devices__" disabled>
                       {loadingDevices ? "Loading devices..." : "No audio devices found"}
                     </SelectItem>
                   ) : (
-                    audioDevices.map((device) => (
-                      <SelectItem key={device.id} value={device.id}>
-                        {device.name} {device.is_default ? "(Default)" : ""}
-                      </SelectItem>
-                    ))
+                    audioDevices
+                      .filter(device => device.id && device.id.trim() !== "")
+                      .map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name} {device.is_default ? "(Default)" : ""}
+                        </SelectItem>
+                      ))
                   )}
                 </SelectContent>
               </Select>
@@ -240,6 +243,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </div>
             </div>
           </div>
+
+          <Separator />
+
+          {/* MongoDB Configuration Section */}
+          <MongoDbConfigSection />
 
           <Separator />
 

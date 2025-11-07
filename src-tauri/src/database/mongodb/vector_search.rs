@@ -12,9 +12,10 @@ use chrono::{DateTime, Utc, Duration, TimeZone};
 use tracing::{debug, info, warn, error};
 
 /// Atlas Vector Search service
+#[derive(Clone)]
 pub struct AtlasVectorSearch {
     database: MongoDatabase,
-    embedding_service: AtlasEmbeddingService,
+    pub embedding_service: AtlasEmbeddingService,
 }
 
 impl AtlasVectorSearch {
@@ -51,7 +52,7 @@ impl AtlasVectorSearch {
 
         // Execute search
         let collection = self.database.recordings();
-        let mut cursor = collection.aggregate(pipeline, None).await?;
+        let mut cursor = collection.aggregate(pipeline).await?;
 
         let mut results = Vec::new();
         use futures_util::stream::StreamExt;
@@ -90,7 +91,7 @@ impl AtlasVectorSearch {
 
         // Execute search
         let collection = self.database.knowledge_base();
-        let mut cursor = collection.aggregate(pipeline, None).await?;
+        let mut cursor = collection.aggregate(pipeline).await?;
 
         let mut results = Vec::new();
         use futures_util::stream::StreamExt;
@@ -150,15 +151,17 @@ impl AtlasVectorSearch {
             config,
         ).await?;
 
+        let context_summary = self.generate_context_summary(
+            &similar_analyses,
+            &relevant_recordings,
+            &knowledge_context,
+        );
+
         Ok(AnalysisContext {
             similar_analyses,
             relevant_recordings,
             knowledge_context,
-            context_summary: self.generate_context_summary(
-                &similar_analyses,
-                &relevant_recordings,
-                &knowledge_context,
-            ),
+            context_summary,
         })
     }
 
@@ -196,8 +199,8 @@ impl AtlasVectorSearch {
         if let Some(ref date_range) = filters.date_range {
             filter_conditions.push(doc! {
                 "created_at": {
-                    "$gte": bson::DateTime::from_chrono(date_range.start),
-                    "$lte": bson::DateTime::from_chrono(date_range.end)
+                    "$gte": bson::DateTime::from_system_time(date_range.start.into()),
+                    "$lte": bson::DateTime::from_system_time(date_range.end.into())
                 }
             });
         }
@@ -299,8 +302,8 @@ impl AtlasVectorSearch {
                     "index": "analysis_vector_index",
                     "path": "embedding",
                     "queryVector": embedding,
-                    "numCandidates": config.max_results * 5,
-                    "limit": config.max_results,
+                    "numCandidates": (config.max_results * 5) as i32,
+                    "limit": config.max_results as i32,
                     "filter": {
                         "project_id": project_id,
                         "analysis_type": analysis_type
@@ -320,7 +323,7 @@ impl AtlasVectorSearch {
         ];
 
         let collection = self.database.analysis_results();
-        let mut cursor = collection.aggregate(pipeline, None).await?;
+        let mut cursor = collection.aggregate(pipeline).await?;
 
         let mut results = Vec::new();
         use futures_util::stream::StreamExt;
@@ -351,7 +354,7 @@ impl AtlasVectorSearch {
             enhanced_transcript,
             summary,
             similarity_score,
-            created_at: created_at.try_to_rfc3339_string().unwrap_or_default().parse().unwrap_or(Utc::now()),
+            created_at: DateTime::<Utc>::from_timestamp_millis(created_at.timestamp_millis()).unwrap_or(Utc::now()),
         })
     }
 
@@ -393,7 +396,7 @@ impl AtlasVectorSearch {
             summary,
             input_text,
             similarity_score,
-            timestamp: timestamp.try_to_rfc3339_string().unwrap_or_default().parse().unwrap_or(Utc::now()),
+            timestamp: DateTime::<Utc>::from_timestamp_millis(timestamp.timestamp_millis()).unwrap_or(Utc::now()),
         })
     }
 
@@ -427,6 +430,7 @@ impl AtlasVectorSearch {
 }
 
 /// Atlas embedding service for generating embeddings
+#[derive(Clone)]
 pub struct AtlasEmbeddingService {
     client: reqwest::Client,
     api_key: String,
@@ -440,18 +444,19 @@ impl AtlasEmbeddingService {
         }
     }
 
-    /// Generate embedding using Atlas VoyageAI
+    /// Generate embedding using VoyageAI API
     pub async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, String> {
-        // TODO: Replace with actual Atlas Data API endpoint
-        // This is a placeholder implementation
+        debug!("Generating VoyageAI embedding for text: {} chars", text.len());
 
         let request_body = serde_json::json!({
             "model": "voyage-2",
-            "input": text
+            "input": [text],
+            "input_type": "document",
+            "truncation": true
         });
 
         let response = self.client
-            .post("https://api.mongodb.com/app/data-api/embedding")  // Placeholder URL
+            .post("https://api.voyageai.com/v1/embeddings")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&request_body)
@@ -459,41 +464,96 @@ impl AtlasEmbeddingService {
             .await
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
-        if !response.status().is_success() {
-            return Err(format!("API request failed with status: {}", response.status()));
+        let status = response.status();
+        let response_text = response.text().await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("VoyageAI API request failed with status {}: {}", status, response_text));
         }
 
-        let response_body: EmbeddingResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+        let response_body: VoyageAIResponse = serde_json::from_str(&response_text)
+            .map_err(|e| format!("Failed to parse VoyageAI response: {}. Response: {}", e, response_text))?;
 
-        Ok(response_body.embedding)
+        // Extract the first (and only) embedding from the response
+        response_body.data.first()
+            .ok_or_else(|| "No embeddings returned from VoyageAI API".to_string())
+            .map(|embedding_data| embedding_data.embedding.clone())
     }
 
     /// Generate embeddings in batch for migration
     pub async fn batch_generate_embeddings(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
-        let mut embeddings = Vec::new();
+        let mut all_embeddings = Vec::new();
 
-        // Process in smaller batches to avoid API limits
-        for chunk in texts.chunks(10) {
-            for text in chunk {
-                let embedding = self.generate_embedding(text).await?;
-                embeddings.push(embedding);
+        // VoyageAI API supports batch requests, so we can send multiple texts at once
+        // Process in smaller batches to avoid API limits (max 128 texts per request)
+        for chunk in texts.chunks(64) {
+            debug!("Generating VoyageAI embeddings for batch of {} texts", chunk.len());
+
+            let request_body = serde_json::json!({
+                "model": "voyage-2",
+                "input": chunk,
+                "input_type": "document",
+                "truncation": true
+            });
+
+            let response = self.client
+                .post("https://api.voyageai.com/v1/embeddings")
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+                .await
+                .map_err(|e| format!("Batch HTTP request failed: {}", e))?;
+
+            let status = response.status();
+            let response_text = response.text().await
+                .map_err(|e| format!("Failed to read batch response: {}", e))?;
+
+            if !status.is_success() {
+                return Err(format!("VoyageAI batch API request failed with status {}: {}", status, response_text));
             }
 
-            // Add small delay to avoid rate limiting
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            let response_body: VoyageAIResponse = serde_json::from_str(&response_text)
+                .map_err(|e| format!("Failed to parse VoyageAI batch response: {}. Response: {}", e, response_text))?;
+
+            // Sort embeddings by index to maintain order
+            let mut sorted_embeddings = response_body.data;
+            sorted_embeddings.sort_by_key(|emb| emb.index);
+
+            // Extract embeddings in the correct order
+            for embedding_data in sorted_embeddings {
+                all_embeddings.push(embedding_data.embedding);
+            }
+
+            // Add delay to avoid rate limiting (VoyageAI has rate limits)
+            if chunk.len() >= 10 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            }
         }
 
-        Ok(embeddings)
+        info!("Generated {} embeddings using VoyageAI batch API", all_embeddings.len());
+        Ok(all_embeddings)
     }
 }
 
-/// Response from embedding API
+/// Response from VoyageAI embedding API
 #[derive(Debug, Serialize, Deserialize)]
-struct EmbeddingResponse {
+struct VoyageAIResponse {
+    data: Vec<VoyageAIEmbedding>,
+    model: String,
+    usage: Option<VoyageAIUsage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct VoyageAIEmbedding {
     embedding: Vec<f32>,
+    index: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct VoyageAIUsage {
+    total_tokens: u32,
 }
 
 /// Search result types

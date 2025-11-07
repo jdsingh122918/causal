@@ -27,11 +27,13 @@ impl RiskAgent {
 
 MISSION: Identify all promises, commitments, and guidance given, then conduct thorough delivery risk assessment.
 
-CRITICAL INSTRUCTIONS:
-1. Return ONLY valid JSON - no explanations, no preamble, no markdown
-2. Use the EXACT format specified below
-3. Be thorough but constructive in identifying risks
-4. Focus on actionable risk insights
+CRITICAL INSTRUCTIONS - MUST FOLLOW EXACTLY:
+1. Return ONLY valid JSON - no explanations, no preamble, no markdown, no text before or after
+2. Start your response immediately with {{ and end with }}
+3. Do NOT wrap in ```json or ``` or any other formatting
+4. Use the EXACT format specified below
+5. Be thorough but constructive in identifying risks
+6. Focus on actionable risk insights
 
 PROMISE DETECTION:
 - Identify explicit promises (direct commitments, guarantees)
@@ -114,7 +116,13 @@ ANALYSIS APPROACH:
 5. Note existing mitigations and suggest additional actions
 6. Be constructive but thorough - identify real risks without being alarmist
 
-JSON response:"#,
+REMEMBER: Return ONLY the JSON object below with no additional text, explanations, or formatting:
+
+{{
+  "overall_risk_level": "...",
+  "risk_summary": "...",
+  // ... rest of structure
+}}"#,
             text = text
         )
     }
@@ -123,18 +131,54 @@ JSON response:"#,
     fn parse_risk_response(response: &str) -> Result<RiskAnalysis, String> {
         use crate::intelligence::types::{PromiseCommitment, DeliveryRisk};
 
-        // Clean the response - remove any markdown formatting
-        let cleaned = response
-            .trim()
-            .strip_prefix("```json")
-            .unwrap_or(response)
-            .strip_suffix("```")
-            .unwrap_or(response)
-            .trim();
+        // Log the raw response for debugging (truncated to avoid log spam)
+        let response_preview = if response.len() > 200 {
+            format!("{}...", &response[..200])
+        } else {
+            response.to_string()
+        };
+        tracing::debug!("Risk agent raw response preview: {}", response_preview);
+
+        // Check if response is empty
+        if response.trim().is_empty() {
+            return Err("Empty response from Claude API".to_string());
+        }
+
+        // Clean the response - remove any markdown formatting and extra content
+        let mut cleaned = response.trim();
+
+        // Remove markdown code blocks
+        if let Some(start) = cleaned.find("```json") {
+            cleaned = &cleaned[start + 7..];
+        }
+        if let Some(start) = cleaned.find("```") {
+            cleaned = &cleaned[start + 3..];
+        }
+        if let Some(end) = cleaned.rfind("```") {
+            cleaned = &cleaned[..end];
+        }
+
+        // Find the first '{' and last '}' to extract just the JSON
+        if let (Some(start), Some(end)) = (cleaned.find('{'), cleaned.rfind('}')) {
+            cleaned = &cleaned[start..=end];
+        }
+
+        cleaned = cleaned.trim();
+
+        // Log the cleaned response for debugging
+        tracing::debug!("Risk agent cleaned response: {}", cleaned);
+
+        // Validate that we have some JSON-like content
+        if !cleaned.starts_with('{') || !cleaned.ends_with('}') {
+            return Err(format!("Response does not appear to be valid JSON. Content: {}", cleaned));
+        }
 
         // Parse JSON
         let parsed: serde_json::Value = serde_json::from_str(cleaned)
-            .map_err(|e| format!("Failed to parse risk JSON: {}", e))?;
+            .map_err(|e| {
+                tracing::error!("Risk JSON parse error: {}. Content: {}", e, cleaned);
+                format!("Failed to parse risk JSON: {}. Response: {}", e, cleaned)
+            })?;
 
         // Extract overall risk level
         let overall_risk_level = parsed
@@ -325,8 +369,29 @@ impl IntelligenceAgent for RiskAgent {
             .map_err(|e| format!("Task join error: {}", e))?
             .map_err(|e| format!("API call failed: {}", e))?;
 
-        // Parse the risk analysis
-        let risk_analysis = Self::parse_risk_response(&response_text)?;
+        // Parse the risk analysis with fallback on failure
+        let risk_analysis = match Self::parse_risk_response(&response_text) {
+            Ok(analysis) => analysis,
+            Err(parse_error) => {
+                tracing::warn!("Risk analysis parsing failed, using fallback: {}", parse_error);
+
+                // Create a fallback analysis to prevent complete failure
+                RiskAnalysis {
+                    overall_risk_level: "medium".to_string(),
+                    risk_summary: format!("Analysis temporarily unavailable due to parsing error: {}", parse_error),
+                    promises_identified: vec![],
+                    promise_clarity_score: 0.0,
+                    delivery_risks: vec![],
+                    critical_risks: vec!["Analysis parsing failed - manual review recommended".to_string()],
+                    operational_risks: vec![],
+                    financial_risks: vec![],
+                    market_risks: vec![],
+                    regulatory_risks: vec![],
+                    existing_mitigations: vec![],
+                    recommended_actions: vec!["Retry analysis or review manually".to_string()],
+                }
+            }
+        };
 
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
 

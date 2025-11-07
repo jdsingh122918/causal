@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useTranscription } from "@/contexts/TranscriptionContext";
 import { useRecordingIntelligence } from "@/hooks/use-recording-intelligence";
+import { useAutoIntelligenceAnalysis } from "@/hooks/use-auto-intelligence-analysis";
 import { RecordingControls } from "@/components/recording/RecordingControls";
 import { TranscriptDisplay } from "@/components/recording/TranscriptDisplay";
 import { RecordingHistory } from "@/components/recording/RecordingHistory";
@@ -23,8 +24,19 @@ function ProjectView() {
   const { state: transcriptionState } = useTranscription();
   const [showHistorical] = useState(false); // TODO: Add UI control to toggle historical analysis
 
+  // Get project intelligence configuration and recording state early
+  const intelligenceConfig = currentProject ? getProjectIntelligence(currentProject.id) : null;
+  const isIntelligenceEnabled = intelligenceConfig?.enabled ?? false;
+  const isRecording = transcriptionState.isRecording;
+
   // Initialize recording intelligence hook for automatic analysis capture
   useRecordingIntelligence();
+
+  // Initialize auto-analysis for live intelligence during recording
+  useAutoIntelligenceAnalysis({
+    enabled: isIntelligenceEnabled,
+    autoAnalyze: intelligenceConfig?.autoAnalyze ?? true,
+  });
 
   if (!currentProject) {
     return (
@@ -39,11 +51,6 @@ function ProjectView() {
       </div>
     );
   }
-
-  // Get project intelligence configuration and recording state
-  const intelligenceConfig = getProjectIntelligence(currentProject.id);
-  const isIntelligenceEnabled = intelligenceConfig?.enabled ?? false;
-  const isRecording = transcriptionState.isRecording;
 
   return (
     <div className="h-full space-y-6">

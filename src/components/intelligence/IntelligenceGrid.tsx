@@ -24,7 +24,6 @@ export function IntelligenceGrid({
   // Map analysis types to tile components
   const renderTile = (analysisType: AnalysisType) => {
     const tileProps = {
-      key: analysisType,
       isRecording,
       showHistorical,
       layoutMode
@@ -32,15 +31,15 @@ export function IntelligenceGrid({
 
     switch (analysisType) {
       case "Sentiment":
-        return <SentimentTile {...tileProps} />;
+        return <SentimentTile key={analysisType} {...tileProps} />;
       case "Financial":
-        return <FinancialTile {...tileProps} />;
+        return <FinancialTile key={analysisType} {...tileProps} />;
       case "Competitive":
-        return <CompetitiveTile {...tileProps} />;
+        return <CompetitiveTile key={analysisType} {...tileProps} />;
       case "Summary":
-        return <SummaryTile {...tileProps} />;
+        return <SummaryTile key={analysisType} {...tileProps} />;
       case "Risk":
-        return <RiskTile {...tileProps} />;
+        return <RiskTile key={analysisType} {...tileProps} />;
       default:
         return null;
     }

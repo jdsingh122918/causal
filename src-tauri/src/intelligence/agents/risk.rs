@@ -34,6 +34,7 @@ CRITICAL INSTRUCTIONS - MUST FOLLOW EXACTLY:
 4. Use the EXACT format specified below
 5. Be thorough but constructive in identifying risks
 6. Focus on actionable risk insights
+7. Keep descriptions concise - prioritize key information over lengthy explanations
 
 PROMISE DETECTION:
 - Identify explicit promises (direct commitments, guarantees)
@@ -173,11 +174,24 @@ REMEMBER: Return ONLY the JSON object below with no additional text, explanation
             return Err(format!("Response does not appear to be valid JSON. Content: {}", cleaned));
         }
 
-        // Parse JSON
+        // Parse JSON with enhanced error handling for truncation
         let parsed: serde_json::Value = serde_json::from_str(cleaned)
             .map_err(|e| {
-                tracing::error!("Risk JSON parse error: {}. Content: {}", e, cleaned);
-                format!("Failed to parse risk JSON: {}. Response: {}", e, cleaned)
+                // Check if this looks like a truncation error
+                let error_msg = e.to_string();
+                let is_truncation = error_msg.contains("EOF") ||
+                                  error_msg.contains("unexpected end") ||
+                                  !cleaned.ends_with('}');
+
+                if is_truncation {
+                    tracing::warn!("Risk JSON appears truncated ({}). Response length: {} chars. Content preview: {}...",
+                                  e, cleaned.len(),
+                                  if cleaned.len() > 100 { &cleaned[..100] } else { cleaned });
+                    format!("Response truncated - likely hit token limit. Error: {}. Response length: {} chars", e, cleaned.len())
+                } else {
+                    tracing::error!("Risk JSON parse error: {}. Content: {}", e, cleaned);
+                    format!("Failed to parse risk JSON: {}. Response: {}", e, cleaned)
+                }
             })?;
 
         // Extract overall risk level
@@ -341,7 +355,7 @@ impl IntelligenceAgent for RiskAgent {
             .messages(&json!([
                 {"role": "user", "content": prompt}
             ]))
-            .max_tokens(2048)
+            .max_tokens(4096) // Increased for complex Risk JSON structure
             .temperature(0.2) // Low temperature for consistent risk assessment
             .build()
             .map_err(|e| format!("Failed to build risk request: {}", e))?;
@@ -369,6 +383,15 @@ impl IntelligenceAgent for RiskAgent {
             .map_err(|e| format!("Task join error: {}", e))?
             .map_err(|e| format!("API call failed: {}", e))?;
 
+        // Log response length and check for potential truncation
+        tracing::debug!("Risk agent received response: {} chars", response_text.len());
+
+        // Check for signs of truncation (incomplete JSON)
+        let trimmed_response = response_text.trim();
+        if !trimmed_response.is_empty() && !trimmed_response.ends_with('}') {
+            tracing::warn!("Risk agent response may be truncated - doesn't end with '}}'. Length: {} chars", response_text.len());
+        }
+
         // Parse the risk analysis with fallback on failure
         let risk_analysis = match Self::parse_risk_response(&response_text) {
             Ok(analysis) => analysis,
@@ -376,19 +399,34 @@ impl IntelligenceAgent for RiskAgent {
                 tracing::warn!("Risk analysis parsing failed, using fallback: {}", parse_error);
 
                 // Create a fallback analysis to prevent complete failure
+                let is_truncation = parse_error.contains("truncated") || parse_error.contains("EOF");
+                let fallback_summary = if is_truncation {
+                    "Analysis incomplete - response was truncated. Increase token limit or retry.".to_string()
+                } else {
+                    format!("Analysis temporarily unavailable: {}", parse_error)
+                };
+
                 RiskAnalysis {
                     overall_risk_level: "medium".to_string(),
-                    risk_summary: format!("Analysis temporarily unavailable due to parsing error: {}", parse_error),
+                    risk_summary: fallback_summary,
                     promises_identified: vec![],
                     promise_clarity_score: 0.0,
                     delivery_risks: vec![],
-                    critical_risks: vec!["Analysis parsing failed - manual review recommended".to_string()],
+                    critical_risks: if is_truncation {
+                        vec!["Response truncated - analysis incomplete".to_string()]
+                    } else {
+                        vec!["Analysis parsing failed - manual review recommended".to_string()]
+                    },
                     operational_risks: vec![],
                     financial_risks: vec![],
                     market_risks: vec![],
                     regulatory_risks: vec![],
                     existing_mitigations: vec![],
-                    recommended_actions: vec!["Retry analysis or review manually".to_string()],
+                    recommended_actions: if is_truncation {
+                        vec!["Increase max_tokens limit and retry analysis".to_string()]
+                    } else {
+                        vec!["Retry analysis or review manually".to_string()]
+                    },
                 }
             }
         };

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AudioDevice, RefinementConfig, AppSettings } from "@/lib/types";
+import { logger } from "@/utils/logger";
 
 interface SettingsContextType {
   audioDevices: AudioDevice[];
@@ -83,7 +84,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [refinementConfig, setRefinementConfig] = useState<RefinementConfig>({
     mode: "disabled",
-    chunk_duration_secs: 30,
+    chunk_duration_secs: 1, // Optimal for real-time turn-by-turn processing
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -111,27 +112,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to load audio devices:", errorMessage);
+      logger.error("Settings", "Failed to load audio devices:", errorMessage);
     }
   };
 
   const loadSettings = async () => {
-    console.log("🔧 [SettingsContext] loadSettings() called");
+    logger.debug("Settings", "loadSettings() called");
     setIsLoading(true);
     try {
       // Migration from localStorage API keys to secure storage
-      console.log("🔧 [SettingsContext] Starting migration...");
+      logger.debug("Settings", "Starting migration...");
       await migrateFromLocalStorage();
 
       // Load non-sensitive settings from localStorage
       const saved = localStorage.getItem(STORAGE_KEY);
-      console.log("🔧 [SettingsContext] localStorage data:", saved ? "found" : "not found");
+      logger.debug("Settings", "localStorage data:", saved ? "found" : "not found");
       if (saved) {
         const parsedData = JSON.parse(saved);
 
         // Handle both old and new format
         if (isValidAppSettings(parsedData)) {
-          console.log("🔧 [SettingsContext] Found old format settings, migrating...");
+          logger.debug("Settings", "Found old format settings, migrating...");
           // Old format with API keys in localStorage - migrate to secure storage
 
           // Save API keys to secure storage
@@ -159,24 +160,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setClaudeApiKey(parsedData.claude_api_key);
           setRefinementConfig(parsedData.refinement_config);
         } else if (isValidNonSensitiveSettings(parsedData)) {
-          console.log("🔧 [SettingsContext] Found new format settings");
+          logger.debug("Settings", "Found new format settings");
           // New format - load from localStorage and secure storage separately
           setSelectedDeviceId(parsedData.selected_device_id);
           setRefinementConfig(parsedData.refinement_config);
         } else {
-          console.warn("Invalid settings data in localStorage, using defaults");
+          logger.warn("Settings", "Invalid settings data in localStorage, using defaults");
           localStorage.removeItem(STORAGE_KEY);
         }
       }
 
       // Load API keys from secure storage
-      console.log("🔧 [SettingsContext] Loading API keys from secure storage...");
+      logger.debug("Settings", "Loading API keys from secure storage...");
       await loadSecureSettings();
 
-      console.log("🔧 [SettingsContext] loadSettings() completed");
+      logger.debug("Settings", "loadSettings() completed");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to load settings:", errorMessage);
+      logger.error("Settings", "Failed to load settings:", errorMessage);
       // Clear corrupted data on parse errors
       localStorage.removeItem(STORAGE_KEY);
     } finally {
@@ -198,13 +199,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         try {
           existingAssemblyKey = await invoke<string | null>("load_secure_setting", { key: "assembly_api_key" });
         } catch (error) {
-          console.warn("Failed to check existing assembly API key during migration:", error);
+          logger.warn("Settings", "Failed to check existing assembly API key during migration:", error);
         }
 
         try {
           existingClaudeKey = await invoke<string | null>("load_secure_setting", { key: "claude_api_key" });
         } catch (error) {
-          console.warn("Failed to check existing Claude API key during migration:", error);
+          logger.warn("Settings", "Failed to check existing Claude API key during migration:", error);
         }
 
         // Only migrate if not already in secure storage
@@ -214,7 +215,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
               request: { key: "assembly_api_key", value: parsedData.assembly_api_key }
             });
           } catch (error) {
-            console.warn("Failed to migrate assembly API key:", error);
+            logger.warn("Settings", "Failed to migrate assembly API key:", error);
           }
         }
 
@@ -224,52 +225,52 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
               request: { key: "claude_api_key", value: parsedData.claude_api_key }
             });
           } catch (error) {
-            console.warn("Failed to migrate Claude API key:", error);
+            logger.warn("Settings", "Failed to migrate Claude API key:", error);
           }
         }
       }
     } catch (error) {
-      console.warn("Migration from localStorage failed:", error);
+      logger.warn("Settings", "Migration from localStorage failed:", error);
     }
   };
 
   const loadSecureSettings = async () => {
-    console.log("🔐 [SettingsContext] loadSecureSettings() called");
+    logger.debug("Security", "loadSecureSettings() called");
     try {
       // Load API keys separately with individual error handling
       let assemblyKey: string | null = "";
       let claudeKey: string | null = "";
 
       try {
-        console.log("🔐 [SettingsContext] Loading assembly_api_key...");
+        logger.debug("Security", "Loading assembly_api_key...");
         assemblyKey = await invoke<string | null>("load_secure_setting", { key: "assembly_api_key" });
-        console.log("🔐 [SettingsContext] Assembly API key loaded:", assemblyKey ? `${assemblyKey.slice(0, 10)}...` : "null/empty");
+        logger.debug("Security", "Assembly API key loaded:", assemblyKey ? `${assemblyKey.slice(0, 10)}...` : "null/empty");
       } catch (error) {
-        console.warn("Failed to load assembly API key:", error);
+        logger.warn("Security", "Failed to load assembly API key:", error);
         assemblyKey = "";
       }
 
       try {
-        console.log("🔐 [SettingsContext] Loading claude_api_key...");
+        logger.debug("Security", "Loading claude_api_key...");
         claudeKey = await invoke<string | null>("load_secure_setting", { key: "claude_api_key" });
-        console.log("🔐 [SettingsContext] Claude API key loaded:", claudeKey ? `${claudeKey.slice(0, 10)}...` : "null/empty");
+        logger.debug("Security", "Claude API key loaded:", claudeKey ? `${claudeKey.slice(0, 10)}...` : "null/empty");
       } catch (error) {
-        console.warn("Failed to load Claude API key:", error);
+        logger.warn("Security", "Failed to load Claude API key:", error);
         claudeKey = "";
       }
 
       const finalAssemblyKey = assemblyKey || "";
       const finalClaudeKey = claudeKey || "";
 
-      console.log("🔐 [SettingsContext] Setting state - Assembly:", finalAssemblyKey ? `${finalAssemblyKey.slice(0, 10)}...` : "empty");
-      console.log("🔐 [SettingsContext] Setting state - Claude:", finalClaudeKey ? `${finalClaudeKey.slice(0, 10)}...` : "empty");
+      logger.debug("Security", "Setting state - Assembly:", finalAssemblyKey ? `${finalAssemblyKey.slice(0, 10)}...` : "empty");
+      logger.debug("Security", "Setting state - Claude:", finalClaudeKey ? `${finalClaudeKey.slice(0, 10)}...` : "empty");
 
       setAssemblyApiKey(finalAssemblyKey);
       setClaudeApiKey(finalClaudeKey);
 
-      console.log("🔐 [SettingsContext] State updated successfully");
+      logger.debug("Security", "State updated successfully");
     } catch (error) {
-      console.warn("Failed to load secure settings:", error);
+      logger.warn("Security", "Failed to load secure settings:", error);
       setAssemblyApiKey("");
       setClaudeApiKey("");
     }
@@ -311,7 +312,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setRefinementConfig(newRefinementConfig);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to save settings:", errorMessage);
+      logger.error("Settings", "Failed to save settings:", errorMessage);
       throw error;
     } finally {
       setIsLoading(false);

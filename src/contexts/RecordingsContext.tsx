@@ -6,6 +6,7 @@ import { useSettings } from "./SettingsContext";
 import { useRecordingEvents } from "@/hooks/use-realtime-events";
 import * as tauri from "@/lib/tauri";
 import type { RecordingAnalysisSnapshot } from "@/hooks/use-recording-intelligence";
+import { logger } from "@/utils/logger";
 
 interface RecordingsContextType {
   recordings: Recording[];
@@ -129,7 +130,7 @@ export function RecordingsProvider({
   }, [currentRecording]);
 
   const handleRecordingSummaryFailed = useCallback((payload: { recording_id: string; error: string }) => {
-    console.warn('Recording summary generation failed:', payload);
+    logger.warn('Recordings', 'Recording summary generation failed:', payload);
     // Could show a toast notification here or update UI to indicate failure
     // For now, just log the event - the manual generation button will still be available
   }, []);
@@ -163,7 +164,7 @@ export function RecordingsProvider({
       setRecordings(recordingsList);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to load recordings:", errorMessage);
+      logger.error("Recordings", "Failed to load recordings:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -178,136 +179,41 @@ export function RecordingsProvider({
       setRecordings(recordingsList);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to refresh recordings:", errorMessage);
+      logger.error("Recordings", "Failed to refresh recordings:", errorMessage);
     }
   }, [currentProject]);
 
   const saveRecording = async (name: string, _transcript: string) => {
-    if (!currentProject) {
-      // First try to refresh the current project in the context
+    // Determine which project to use
+    let projectToUse = currentProject;
+
+    if (!projectToUse) {
+      logger.warn("Recordings", "No current project in context, attempting to restore...");
+
+      // Try to refresh the current project in the context
       try {
         await refreshCurrentProject();
-
-        // After refresh, try to get the updated project directly from backend
+        // Fetch the project directly since state update won't be available yet
         const refreshedProject = await invoke<Project | null>("get_current_project");
+
         if (refreshedProject) {
-
-          // Use the refreshed project directly for this operation
-          const optimisticId = `temp-${Date.now()}`;
-          const optimisticRecording: Recording = {
-            id: optimisticId,
-            project_id: refreshedProject.id,
-            name,
-            raw_transcript: _transcript,
-            enhanced_transcript: "",
-            summary: null,
-            key_points: [],
-            action_items: [],
-            created_at: Date.now(),
-            status: "Recording",
-            metadata: {
-              duration_seconds: 0,
-              chunk_count: 0,
-              word_count: _transcript.split(' ').length,
-              turn_count: 1,
-              average_confidence: 0.95,
-            },
-          };
-
-          setOptimisticOperations(prev => new Map(prev.set(optimisticId, optimisticRecording)));
-          setRecordings(prev => [optimisticRecording, ...prev]);
-
-          try {
-            await tauri.saveRecording(name);
-            return;
-          } catch (error) {
-            console.error("❌ Failed to save with refreshed project:", error);
-            // Revert optimistic update on error
-            setOptimisticOperations(prev => {
-              const next = new Map(prev);
-              next.delete(optimisticId);
-              return next;
-            });
-            setRecordings(prev => prev.filter(r => r.id !== optimisticId));
-            throw error;
-          } finally {
-            // Clean up optimistic operation
-            setOptimisticOperations(prev => {
-              const next = new Map(prev);
-              next.delete(optimisticId);
-              return next;
-            });
-          }
+          logger.info("Recordings", `Successfully restored project: ${refreshedProject.name}`);
+          projectToUse = refreshedProject;
+        } else {
+          logger.error("Recordings", "Failed to restore project from backend - no project selected");
+          throw new Error("No project selected. Please select a project before saving recordings.");
         }
       } catch (refreshError) {
-        console.error("Failed to refresh current project:", refreshError);
+        logger.error("Recordings", "Failed to refresh current project:", refreshError);
+        throw new Error("No project selected. Please select a project before saving recordings.");
       }
-
-      // Additional fallback - try to fetch current project directly
-      try {
-        const backendProject = await invoke<Project | null>("get_current_project");
-
-        if (backendProject) {
-          // Use the backend project for this operation
-          const optimisticId = `temp-${Date.now()}`;
-          const optimisticRecording: Recording = {
-            id: optimisticId,
-            project_id: backendProject.id,
-            name,
-            raw_transcript: _transcript,
-            enhanced_transcript: "",
-            summary: null,
-            key_points: [],
-            action_items: [],
-            created_at: Date.now(),
-            status: "Recording",
-            metadata: {
-              duration_seconds: 0,
-              chunk_count: 0,
-              word_count: _transcript.split(' ').length,
-              turn_count: 1,
-              average_confidence: 0.95,
-            },
-          };
-
-          // Perform the save operation with backend project
-          setOptimisticOperations(prev => new Map(prev.set(optimisticId, optimisticRecording)));
-          setRecordings(prev => [optimisticRecording, ...prev]);
-
-          try {
-            await tauri.saveRecording(name);
-            return;
-          } catch (error) {
-            console.error("❌ Failed to save with backend project:", error);
-            // Revert optimistic update on error
-            setOptimisticOperations(prev => {
-              const next = new Map(prev);
-              next.delete(optimisticId);
-              return next;
-            });
-            setRecordings(prev => prev.filter(r => r.id !== optimisticId));
-            throw error;
-          } finally {
-            // Clean up optimistic operation
-            setOptimisticOperations(prev => {
-              const next = new Map(prev);
-              next.delete(optimisticId);
-              return next;
-            });
-          }
-        }
-      } catch (backendError) {
-        console.error("🚨 Backend also has no current project:", backendError);
-      }
-
-      throw new Error("No project selected");
     }
 
     // Generate optimistic ID
     const optimisticId = `temp-${Date.now()}`;
     const optimisticRecording: Recording = {
       id: optimisticId,
-      project_id: currentProject.id,
+      project_id: projectToUse.id,
       name,
       raw_transcript: _transcript,
       enhanced_transcript: "",
@@ -354,7 +260,7 @@ export function RecordingsProvider({
       });
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to save recording:", errorMessage);
+      logger.error("Recordings", "Failed to save recording:", errorMessage);
       throw error;
     }
   };
@@ -394,7 +300,7 @@ export function RecordingsProvider({
       setCurrentRecording(originalCurrentRecording);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to rename recording:", errorMessage);
+      logger.error("Recordings", "Failed to rename recording:", errorMessage);
       throw error;
     }
   };
@@ -419,7 +325,7 @@ export function RecordingsProvider({
       setCurrentRecording(originalCurrentRecording);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to delete recording:", errorMessage);
+      logger.error("Recordings", "Failed to delete recording:", errorMessage);
       throw error;
     }
   };
@@ -443,7 +349,7 @@ export function RecordingsProvider({
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to generate summary:", errorMessage);
+      logger.error("Recordings", "Failed to generate summary:", errorMessage);
       throw error;
     }
   };
@@ -475,7 +381,7 @@ export function RecordingsProvider({
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to export recording:", errorMessage);
+      logger.error("Recordings", "Failed to export recording:", errorMessage);
       throw error;
     }
   };
@@ -489,9 +395,9 @@ export function RecordingsProvider({
       // For now, store in localStorage with recording ID as key
       const storageKey = `intelligence_analysis_${recordingId}`;
       localStorage.setItem(storageKey, JSON.stringify(snapshot));
-      console.log(`Intelligence analysis attached to recording ${recordingId}`);
+      logger.debug("Recordings", `Intelligence analysis attached to recording ${recordingId}`);
     } catch (error) {
-      console.error("Failed to store intelligence analysis:", error);
+      logger.error("Recordings", "Failed to store intelligence analysis:", error);
       throw error;
     }
   };
@@ -509,7 +415,7 @@ export function RecordingsProvider({
 
       return null;
     } catch (error) {
-      console.error("Failed to retrieve intelligence analysis:", error);
+      logger.error("Recordings", "Failed to retrieve intelligence analysis:", error);
       return null;
     }
   };

@@ -24,6 +24,7 @@ import {
   ArrowDown,
   Sparkles
 } from "lucide-react";
+import { logger } from "@/utils/logger";
 
 interface IntelligenceSidebarProps {
   isVisible: boolean;
@@ -146,9 +147,9 @@ export function IntelligenceSidebar({
       !propEnabledAnalyses.every(type => currentEnabledAnalyses.includes(type));
 
     if (configDifferent && intelligence.state.config.api_key) {
-      console.log(`🧠 [IntelligenceSidebar] Updating backend config with ${propEnabledAnalyses.length} enabled analyses:`, propEnabledAnalyses);
+      logger.debug("IntelligenceSidebar", `Updating backend config with ${propEnabledAnalyses.length} enabled analyses:`, propEnabledAnalyses);
       analysis.enableAnalysisTypes(propEnabledAnalyses).catch(error => {
-        console.error("Failed to update enabled analysis types:", error);
+        logger.error("IntelligenceSidebar", "Failed to update enabled analysis types:", error);
       });
     }
   }, [enabledAnalyses, intelligence.state.config.enabled_analyses, intelligence.state.config.api_key, analysis]);

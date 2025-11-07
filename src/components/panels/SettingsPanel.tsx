@@ -16,6 +16,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { RefinementMode } from "@/lib/types";
 import { toast } from "sonner";
 import { Mic, Key, Sparkles, Save, RefreshCw } from "lucide-react";
+import { logger } from "@/utils/logger";
 
 export function SettingsPanel() {
   const {
@@ -29,7 +30,7 @@ export function SettingsPanel() {
   } = useSettings();
 
   // Debug logging for context values
-  console.log("⚙️ [SettingsPanel] Context values:", {
+  logger.debug("SettingsPanel", "Context values:", {
     assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
     claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
     selectedDeviceId,
@@ -52,7 +53,7 @@ export function SettingsPanel() {
       try {
         await loadAudioDevices();
       } catch (error) {
-        console.error("Failed to load audio devices:", error);
+        logger.error("SettingsPanel", "Failed to load audio devices:", error);
       } finally {
         setLoadingDevices(false);
       }
@@ -63,8 +64,8 @@ export function SettingsPanel() {
 
   // Update local state when context values change (e.g., after loading from database)
   useEffect(() => {
-    console.log("⚙️ [SettingsPanel] useEffect triggered - updating local state with context values");
-    console.log("⚙️ [SettingsPanel] Context values received:", {
+    logger.debug("SettingsPanel", "useEffect triggered - updating local state with context values");
+    logger.debug("SettingsPanel", "Context values received:", {
       assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
       claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
       selectedDeviceId,
@@ -77,7 +78,7 @@ export function SettingsPanel() {
     setLocalMode(refinementConfig.mode);
     setLocalChunkDuration(refinementConfig.chunk_duration_secs);
 
-    console.log("⚙️ [SettingsPanel] Local state updated:", {
+    logger.debug("SettingsPanel", "Local state updated:", {
       localAssemblyKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
       localClaudeKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty"
     });

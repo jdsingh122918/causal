@@ -6,6 +6,7 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub api_key_reference: Option<String>, // References key in secure_settings table
     #[serde(with = "crate::database::serde_helpers")]
     pub created_at: SystemTime,
     #[serde(with = "crate::database::serde_helpers")]
@@ -19,6 +20,7 @@ impl Project {
             id: uuid::Uuid::new_v4().to_string(),
             name,
             description,
+            api_key_reference: None, // No API key configured by default
             created_at: now,
             updated_at: now,
         }

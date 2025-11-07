@@ -57,6 +57,9 @@ export interface IntelligenceConfig {
   analyses: AnalysisType[];
   autoAnalyze: boolean;
   analysisFrequency: "sentence" | "paragraph" | "manual";
+  // Per-project API key settings
+  useProjectApiKey?: boolean; // Flag to use project-specific key
+  useGlobalApiKey?: boolean; // Flag to use global fallback
 }
 
 // Project Types
@@ -64,9 +67,12 @@ export interface Project {
   id: string;
   name: string;
   description: string;
+  api_key_reference?: string | null; // References key in secure_settings table
   created_at: number; // SystemTime as Unix timestamp
   updated_at: number;
   intelligence?: IntelligenceConfig; // Optional BI configuration
+  // Computed fields (not stored in database)
+  apiKeyConfigured?: boolean; // Indicator if project has API key
 }
 
 export interface CreateProjectRequest {

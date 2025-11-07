@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -60,7 +61,14 @@ const ANALYSIS_OPTIONS: Array<{
 
 export function IntelligenceSettingsPage() {
   const navigate = useNavigate();
-  const { currentProject, getProjectIntelligence, updateProjectIntelligence } = useProjects();
+  const {
+    currentProject,
+    getProjectIntelligence,
+    updateProjectIntelligence,
+    setProjectApiKey,
+    deleteProjectApiKey,
+    hasProjectApiKey
+  } = useProjects();
   const { claudeApiKey } = useSettings();
 
   const [config, setConfig] = useState<IntelligenceConfig>({
@@ -70,6 +78,9 @@ export function IntelligenceSettingsPage() {
     analysisFrequency: "sentence",
   });
   const [loading, setLoading] = useState(false);
+  const [projectApiKey, setProjectApiKeyLocal] = useState<string>("");
+  const [useProjectKey, setUseProjectKey] = useState<boolean>(false);
+  const [checkingApiKey, setCheckingApiKey] = useState<boolean>(false);
 
   // Load project intelligence config on mount
   useEffect(() => {
@@ -80,6 +91,34 @@ export function IntelligenceSettingsPage() {
       }
     }
   }, [currentProject, getProjectIntelligence]);
+
+  // Check project API key status on mount
+  useEffect(() => {
+    if (currentProject) {
+      const checkProjectApiKey = async () => {
+        setCheckingApiKey(true);
+        try {
+          const hasKey = await hasProjectApiKey(currentProject.id);
+          setUseProjectKey(hasKey);
+
+          if (hasKey) {
+            // Don't load the actual key for security, just indicate it's configured
+            setProjectApiKeyLocal("••••••••••••••••••••••••••••••••••••••••••••••••••••");
+          } else {
+            setProjectApiKeyLocal("");
+          }
+        } catch (error) {
+          console.error("Failed to check project API key:", error);
+          setUseProjectKey(false);
+          setProjectApiKeyLocal("");
+        } finally {
+          setCheckingApiKey(false);
+        }
+      };
+
+      checkProjectApiKey();
+    }
+  }, [currentProject, hasProjectApiKey]);
 
   const handleSave = async () => {
     if (!currentProject) {
@@ -122,6 +161,47 @@ export function IntelligenceSettingsPage() {
       ...prev,
       analyses: []
     }));
+  };
+
+  const handleProjectApiKeySave = async () => {
+    if (!currentProject || !projectApiKey || projectApiKey.startsWith('••')) {
+      toast.error("Please enter a valid API key");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await setProjectApiKey(currentProject.id, projectApiKey);
+      setUseProjectKey(true);
+      toast.success("Project API key saved successfully");
+      // Mask the key for display
+      setProjectApiKeyLocal("••••••••••••••••••••••••••••••••••••••••••••••••••••");
+    } catch (error) {
+      toast.error("Failed to save project API key");
+      console.error("Failed to save project API key:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProjectApiKeyDelete = async () => {
+    if (!currentProject) {
+      toast.error("No project selected");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteProjectApiKey(currentProject.id);
+      setUseProjectKey(false);
+      setProjectApiKeyLocal("");
+      toast.success("Project API key removed successfully");
+    } catch (error) {
+      toast.error("Failed to remove project API key");
+      console.error("Failed to remove project API key:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!currentProject) {
@@ -167,38 +247,110 @@ export function IntelligenceSettingsPage() {
 
       <ScrollArea className="h-[calc(100vh-240px)]">
         <div className="space-y-6 pr-6">
-          {/* API Key Status */}
+          {/* API Key Configuration */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">API Configuration</CardTitle>
+              <CardTitle className="text-base">API Key Configuration</CardTitle>
               <CardDescription>
-                Intelligence features use the Claude API key from global settings
+                Choose between a project-specific API key or use the global setting
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <div className={`h-2 w-2 rounded-full ${claudeApiKey ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <div>
-                    <p className="font-medium">Anthropic API Key</p>
-                    <p className="text-sm text-muted-foreground">
-                      {claudeApiKey ? 'Configured and ready' : 'Not configured'}
+            <CardContent className="space-y-6">
+              {/* Global API Key Status */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Global API Key</Label>
+                <div className="flex items-center justify-between p-4 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-2 w-2 rounded-full ${claudeApiKey ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <div>
+                      <p className="font-medium">Anthropic Claude API</p>
+                      <p className="text-sm text-muted-foreground">
+                        {claudeApiKey ? 'Configured and ready' : 'Not configured'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/settings')}
+                  >
+                    Go to Settings
+                  </Button>
+                </div>
+              </div>
+
+              {/* Project-Specific API Key Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="use-project-key"
+                    checked={useProjectKey}
+                    onCheckedChange={setUseProjectKey}
+                    disabled={checkingApiKey}
+                  />
+                  <Label htmlFor="use-project-key" className="text-sm font-medium">
+                    Use project-specific API key
+                  </Label>
+                </div>
+
+                {useProjectKey && (
+                  <div className="space-y-3 ml-6 pl-4 border-l-2 border-muted">
+                    <Label className="text-sm font-medium">Project API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="sk-ant-... (Enter your project-specific Claude API key)"
+                        value={projectApiKey}
+                        onChange={(e) => setProjectApiKeyLocal(e.target.value)}
+                        disabled={loading}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleProjectApiKeySave}
+                        disabled={loading || !projectApiKey || projectApiKey.startsWith('••')}
+                        size="sm"
+                      >
+                        {loading ? 'Saving...' : 'Save'}
+                      </Button>
+                      {projectApiKey.startsWith('••') && (
+                        <Button
+                          onClick={handleProjectApiKeyDelete}
+                          disabled={loading}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This API key will be used for this project only and overrides the global setting
                     </p>
                   </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/settings')}
-                >
-                  Go to Settings
-                </Button>
+                )}
               </div>
-              {!claudeApiKey && (
-                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-2">
+
+              {/* Effective API Key Status */}
+              <div className="p-3 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${(useProjectKey ? projectApiKey.startsWith('••') : claudeApiKey) ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <p className="text-sm font-medium">
+                    Effective API Key: {useProjectKey ? 'Project-Specific' : 'Global'}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(useProjectKey ? projectApiKey.startsWith('••') : claudeApiKey)
+                    ? 'Intelligence features are ready to use'
+                    : 'Configure an API key to enable intelligence features'}
+                </p>
+              </div>
+
+              {/* Warning if no API key is available */}
+              {!(useProjectKey ? projectApiKey.startsWith('••') : claudeApiKey) && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5" />
                   <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                    An API key is required to enable intelligence features. Configure it in Settings.
+                    Intelligence features require an API key. Configure either a global key in Settings or a project-specific key above.
                   </p>
                 </div>
               )}

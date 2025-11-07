@@ -355,6 +355,11 @@ pub fn run() {
             database::get_secure_settings_stats,
             database::secure_setting_exists,
             database::list_secure_setting_keys,
+            // Project-specific API key commands
+            database::save_project_api_key,
+            database::load_project_api_key,
+            database::delete_project_api_key,
+            database::project_api_key_exists,
             // Recording session commands
             transcription::save_recording,
             transcription::get_current_session,

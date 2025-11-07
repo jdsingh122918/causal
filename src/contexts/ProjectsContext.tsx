@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { Project, CreateProjectRequest, IntelligenceConfig } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { useProjectEvents } from "@/hooks/use-realtime-events";
 import { logger } from "@/utils/logger";
 
@@ -17,6 +18,12 @@ interface ProjectsContextType {
   refreshCurrentProject: () => Promise<void>;
   updateProjectIntelligence: (projectId: string, config: IntelligenceConfig) => Promise<void>;
   getProjectIntelligence: (projectId?: string) => IntelligenceConfig | null;
+
+  // Per-project API key management
+  setProjectApiKey: (projectId: string, apiKey: string) => Promise<void>;
+  getProjectApiKey: (projectId: string) => Promise<string | null>;
+  deleteProjectApiKey: (projectId: string) => Promise<void>;
+  hasProjectApiKey: (projectId: string) => Promise<boolean>;
 }
 
 const ProjectsContext = createContext<ProjectsContextType | null>(null);
@@ -347,6 +354,108 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Per-project API key management functions
+  const setProjectApiKey = async (projectId: string, apiKey: string) => {
+    // Validate input parameters
+    if (!projectId || typeof projectId !== 'string') {
+      throw new Error("Invalid project ID provided");
+    }
+    if (!apiKey || typeof apiKey !== 'string') {
+      throw new Error("Invalid API key provided");
+    }
+
+    try {
+      // Call backend to save to secure storage
+      await invoke("save_project_api_key", {
+        projectId: projectId,
+        apiKey: apiKey
+      });
+
+      // Update project state to indicate API key is configured
+      setProjects(prev => prev.map(p =>
+        p.id === projectId
+          ? { ...p, apiKeyConfigured: true }
+          : p
+      ));
+
+      // Update current project if it's the one being modified
+      if (currentProject?.id === projectId) {
+        setCurrentProject(prev => prev ? { ...prev, apiKeyConfigured: true } : prev);
+      }
+
+      logger.info("Projects", `API key saved for project: ${projectId}`);
+    } catch (error) {
+      logger.error("Projects", "Failed to save project API key:", error);
+      throw error;
+    }
+  };
+
+  const getProjectApiKey = async (projectId: string): Promise<string | null> => {
+    // Validate input parameter
+    if (!projectId || typeof projectId !== 'string') {
+      logger.warn("Projects", "Invalid project ID provided to getProjectApiKey:", projectId);
+      return null;
+    }
+
+    try {
+      const apiKey = await invoke<string | null>("load_project_api_key", {
+        projectId: projectId
+      });
+      return apiKey || null;
+    } catch (error) {
+      logger.warn("Projects", "Failed to load project API key:", error);
+      return null;
+    }
+  };
+
+  const deleteProjectApiKey = async (projectId: string): Promise<void> => {
+    // Validate input parameter
+    if (!projectId || typeof projectId !== 'string') {
+      throw new Error("Invalid project ID provided");
+    }
+
+    try {
+      await invoke("delete_project_api_key", {
+        projectId: projectId
+      });
+
+      // Update project state to indicate API key is no longer configured
+      setProjects(prev => prev.map(p =>
+        p.id === projectId
+          ? { ...p, apiKeyConfigured: false }
+          : p
+      ));
+
+      // Update current project if it's the one being modified
+      if (currentProject?.id === projectId) {
+        setCurrentProject(prev => prev ? { ...prev, apiKeyConfigured: false } : prev);
+      }
+
+      logger.info("Projects", `API key deleted for project: ${projectId}`);
+    } catch (error) {
+      logger.error("Projects", "Failed to delete project API key:", error);
+      throw error;
+    }
+  };
+
+  const hasProjectApiKey = async (projectId: string): Promise<boolean> => {
+    // Validate input parameter
+    if (!projectId || typeof projectId !== 'string') {
+      logger.warn("Projects", "Invalid project ID provided to hasProjectApiKey:", projectId);
+      return false;
+    }
+
+    try {
+      const exists = await invoke<boolean>("project_api_key_exists", {
+        projectId: projectId
+      });
+      return exists;
+    } catch (error) {
+      logger.warn("Projects", "Failed to check project API key existence:", error);
+      return false;
+    }
+  };
+
   // Load intelligence configs for all projects on mount
   useEffect(() => {
     const loadIntelligenceConfigs = () => {
@@ -385,6 +494,12 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         refreshCurrentProject,
         updateProjectIntelligence,
         getProjectIntelligence,
+
+        // Per-project API key management
+        setProjectApiKey,
+        getProjectApiKey,
+        deleteProjectApiKey,
+        hasProjectApiKey,
       }}
     >
       {children}

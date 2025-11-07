@@ -59,6 +59,7 @@ impl Database {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
                 description TEXT NOT NULL,
+                api_key_reference TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             )",
@@ -107,6 +108,14 @@ impl Database {
             [],
         )
         .map_err(|e| format!("Failed to create secure_settings table: {}", e))?;
+
+        // Apply database migrations for schema changes
+        // Migration: Add api_key_reference column to projects table if it doesn't exist
+        let _migration_result = conn.execute(
+            "ALTER TABLE projects ADD COLUMN api_key_reference TEXT",
+            [],
+        );
+        // Note: This will fail if column already exists, which is expected behavior
 
         // Apply database performance optimizations
         // Note: Some PRAGMA statements return values, so we need to handle them properly
@@ -157,11 +166,12 @@ impl Database {
         let conn = self.connection.lock().await;
 
         conn.execute(
-            "INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO projects (id, name, description, api_key_reference, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 project.id,
                 project.name,
                 project.description,
+                project.api_key_reference,
                 Self::system_time_to_timestamp(project.created_at),
                 Self::system_time_to_timestamp(project.updated_at),
             ],
@@ -182,7 +192,7 @@ impl Database {
 
         let mut stmt = conn
             .prepare(
-                "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?1",
+                "SELECT id, name, description, api_key_reference, created_at, updated_at FROM projects WHERE id = ?1",
             )
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
@@ -192,8 +202,9 @@ impl Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: Self::timestamp_to_system_time(row.get(3)?),
-                    updated_at: Self::timestamp_to_system_time(row.get(4)?),
+                    api_key_reference: row.get(3)?,
+                    created_at: Self::timestamp_to_system_time(row.get(4)?),
+                    updated_at: Self::timestamp_to_system_time(row.get(5)?),
                 })
             })
             .map_err(|_| "Project not found".to_string())?;
@@ -205,7 +216,7 @@ impl Database {
         let conn = self.connection.lock().await;
 
         let mut stmt = conn
-            .prepare("SELECT id, name, description, created_at, updated_at FROM projects ORDER BY created_at DESC")
+            .prepare("SELECT id, name, description, api_key_reference, created_at, updated_at FROM projects ORDER BY created_at DESC")
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
         let projects = stmt
@@ -214,8 +225,9 @@ impl Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: Self::timestamp_to_system_time(row.get(3)?),
-                    updated_at: Self::timestamp_to_system_time(row.get(4)?),
+                    api_key_reference: row.get(3)?,
+                    created_at: Self::timestamp_to_system_time(row.get(4)?),
+                    updated_at: Self::timestamp_to_system_time(row.get(5)?),
                 })
             })
             .map_err(|e| format!("Failed to query projects: {}", e))?
@@ -270,6 +282,37 @@ impl Database {
 
         drop(conn);
         self.get_project(id).await
+    }
+
+    /// Update the api_key_reference field for a project
+    pub async fn update_project_api_key_reference(
+        &self,
+        project_id: &str,
+        api_key_reference: Option<String>,
+    ) -> Result<(), String> {
+        let conn = self.connection.lock().await;
+
+        // Check if project exists first
+        let exists: bool = conn
+            .query_row("SELECT 1 FROM projects WHERE id = ?1", params![project_id], |_| {
+                Ok(true)
+            })
+            .unwrap_or(false);
+
+        if !exists {
+            return Err("Project not found".to_string());
+        }
+
+        let now = Self::system_time_to_timestamp(SystemTime::now());
+
+        // Update the api_key_reference field
+        conn.execute(
+            "UPDATE projects SET api_key_reference = ?1, updated_at = ?2 WHERE id = ?3",
+            params![api_key_reference, now, project_id],
+        )
+        .map_err(|e| format!("Failed to update project API key reference: {}", e))?;
+
+        Ok(())
     }
 
     pub async fn delete_project(&self, id: &str) -> Result<(), String> {

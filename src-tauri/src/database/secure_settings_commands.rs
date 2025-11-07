@@ -186,3 +186,114 @@ pub async fn list_secure_setting_keys(
     // We need to add this method to the Database struct since connection is private
     db.list_secure_setting_keys().await
 }
+
+// Project-specific API key management functions
+
+/// Save an API key for a specific project
+#[tauri::command]
+pub async fn save_project_api_key(
+    app: AppHandle,
+    db: State<'_, Database>,
+    project_id: String,
+    api_key: String,
+) -> Result<(), String> {
+    tracing::info!("Saving API key for project: {}", project_id);
+
+    // Validate inputs
+    if project_id.is_empty() {
+        return Err("Project ID cannot be empty".to_string());
+    }
+
+    if api_key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+
+    let secure_key = format!("project_{}_api_key", project_id);
+
+    // Save the API key using existing secure settings infrastructure
+    db.save_secure_setting(&secure_key, &api_key).await?;
+
+    // Update the project's api_key_reference field
+    db.update_project_api_key_reference(&project_id, Some(secure_key.clone())).await?;
+
+    // Emit event to notify frontend of API key save
+    if let Err(e) = app.emit("project_api_key_saved", serde_json::json!({
+        "project_id": project_id,
+        "secure_key": secure_key
+    })) {
+        tracing::warn!("Failed to emit project_api_key_saved event: {}", e);
+    }
+
+    Ok(())
+}
+
+/// Load an API key for a specific project
+#[tauri::command]
+pub async fn load_project_api_key(
+    db: State<'_, Database>,
+    project_id: String,
+) -> Result<Option<String>, String> {
+    tracing::info!("Loading API key for project: {}", project_id);
+
+    if project_id.is_empty() {
+        return Err("Project ID cannot be empty".to_string());
+    }
+
+    let secure_key = format!("project_{}_api_key", project_id);
+
+    // Load the API key using existing secure settings infrastructure
+    db.load_secure_setting(&secure_key).await
+}
+
+/// Delete an API key for a specific project
+#[tauri::command]
+pub async fn delete_project_api_key(
+    app: AppHandle,
+    db: State<'_, Database>,
+    project_id: String,
+) -> Result<bool, String> {
+    tracing::info!("Deleting API key for project: {}", project_id);
+
+    if project_id.is_empty() {
+        return Err("Project ID cannot be empty".to_string());
+    }
+
+    let secure_key = format!("project_{}_api_key", project_id);
+
+    // Delete the API key from secure settings
+    let deleted = db.delete_secure_setting(&secure_key).await?;
+
+    if deleted {
+        // Clear the project's api_key_reference field
+        db.update_project_api_key_reference(&project_id, None).await?;
+
+        // Emit event to notify frontend of API key deletion
+        if let Err(e) = app.emit("project_api_key_deleted", serde_json::json!({
+            "project_id": project_id,
+            "secure_key": secure_key
+        })) {
+            tracing::warn!("Failed to emit project_api_key_deleted event: {}", e);
+        }
+    }
+
+    Ok(deleted)
+}
+
+/// Check if a specific project has an API key configured
+#[tauri::command]
+pub async fn project_api_key_exists(
+    db: State<'_, Database>,
+    project_id: String,
+) -> Result<bool, String> {
+    tracing::debug!("Checking if API key exists for project: {}", project_id);
+
+    if project_id.is_empty() {
+        return Err("Project ID cannot be empty".to_string());
+    }
+
+    let secure_key = format!("project_{}_api_key", project_id);
+
+    // Check if the API key exists using existing secure settings infrastructure
+    let api_key = db.load_secure_setting(&secure_key).await?;
+    Ok(api_key.is_some())
+}

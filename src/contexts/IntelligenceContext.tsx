@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "./SettingsContext";
+import { useProjects } from "./ProjectsContext";
 import { logger } from "@/utils/logger";
 
 // Intelligence types (matching Rust backend)
@@ -206,6 +207,7 @@ const IntelligenceContext = createContext<IntelligenceContextType | undefined>(u
 
 export function IntelligenceProvider({ children }: { children: React.ReactNode }) {
   const { claudeApiKey } = useSettings();
+  const { currentProject, getProjectApiKey, hasProjectApiKey } = useProjects();
   const [state, setState] = useState<IntelligenceState>({
     config: defaultConfig,
     isInitialized: false,
@@ -215,6 +217,34 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     availableAnalysisTypes: [],
     systemStatus: null,
   });
+
+  // Determine which API key to use: project-specific first, then global fallback
+  const getEffectiveApiKey = useCallback(async (): Promise<string | null> => {
+    if (currentProject?.id) {
+      try {
+        // Check if project has API key configured
+        const hasProjectKey = await hasProjectApiKey(currentProject.id);
+        if (hasProjectKey) {
+          const projectKey = await getProjectApiKey(currentProject.id);
+          if (projectKey) {
+            logger.debug("Intelligence", `Using project-specific API key for project: ${currentProject.id}`);
+            return projectKey;
+          }
+        }
+      } catch (error) {
+        logger.warn("Intelligence", "Failed to check project API key, falling back to global:", error);
+      }
+    }
+
+    // Fall back to global API key
+    if (claudeApiKey) {
+      logger.debug("Intelligence", "Using global API key");
+      return claudeApiKey;
+    }
+
+    logger.debug("Intelligence", "No API key available (neither project-specific nor global)");
+    return null;
+  }, [currentProject, hasProjectApiKey, getProjectApiKey, claudeApiKey]);
 
   // Load configuration and status on mount
   useEffect(() => {
@@ -301,34 +331,36 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  // Update config with API key from settings and auto-initialize
+  // Update config with effective API key (project-specific or global) and auto-initialize
   useEffect(() => {
     const updateApiKeyAndInitialize = async () => {
-      if (!claudeApiKey) {
-        logger.debug("Intelligence", "No Claude API key available, skipping initialization");
+      const effectiveKey = await getEffectiveApiKey();
+
+      if (!effectiveKey) {
+        logger.debug("Intelligence", "No API key available (neither project-specific nor global), skipping initialization");
         return;
       }
 
-      // Update config with API key from settings if it's different
-      if (state.config.api_key !== claudeApiKey) {
-        logger.debug("Intelligence", "Updating API key from settings");
+      // Update config with effective API key if it's different
+      if (state.config.api_key !== effectiveKey) {
+        logger.debug("Intelligence", "Updating API key from project or global settings");
         setState(prev => ({
           ...prev,
-          config: { ...prev.config, api_key: claudeApiKey }
+          config: { ...prev.config, api_key: effectiveKey }
         }));
 
         try {
-          // Update the backend config with the new API key
-          const newConfig = { ...state.config, api_key: claudeApiKey };
+          // Update the backend config with the effective API key
+          const newConfig = { ...state.config, api_key: effectiveKey };
           await invoke("set_intelligence_config", { config: newConfig });
         } catch (error) {
-          logger.error("Intelligence", "Failed to update intelligence config with API key:", error);
+          logger.error("Intelligence", "Failed to update intelligence config with effective API key:", error);
         }
       }
 
       // Auto-initialize if we have an API key but system is not initialized
-      if (claudeApiKey && !state.isInitialized && !state.isProcessing) {
-        logger.debug("Intelligence", "Auto-initializing system with API key");
+      if (effectiveKey && !state.isInitialized && !state.isProcessing) {
+        logger.debug("Intelligence", "Auto-initializing system with effective API key");
         try {
           setState(prev => ({ ...prev, isProcessing: true }));
           await invoke("initialize_intelligence_system");
@@ -352,7 +384,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     };
 
     updateApiKeyAndInitialize();
-  }, [claudeApiKey, state.config.api_key, state.isInitialized, state.isProcessing]);
+  }, [getEffectiveApiKey, state.config.api_key, state.isInitialized, state.isProcessing]);
 
   const updateConfig = useCallback(async (configUpdate: Partial<IntelligenceConfig>) => {
     const newConfig = { ...state.config, ...configUpdate };

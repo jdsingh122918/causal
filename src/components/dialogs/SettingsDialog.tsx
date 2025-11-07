@@ -24,6 +24,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { RefinementMode } from "@/lib/types";
 import { toast } from "sonner";
 import { Mic, Key, Sparkles, Save, X, RefreshCw } from "lucide-react";
+import { logger } from "@/utils/logger";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -42,7 +43,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   } = useSettings();
 
   // Debug logging for context values
-  console.log("🎛️ [SettingsDialog] Context values:", {
+  logger.debug("SettingsDialog", "Context values:", {
     assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
     claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
     selectedDeviceId,
@@ -66,8 +67,8 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         try {
           await loadAudioDevices();
         } catch (error) {
-          console.error("Failed to load audio devices:", error);
-        } finally {
+          logger.error("SettingsDialog", "Failed to load audio devices:", error);
+        } finally{
           setLoadingDevices(false);
         }
       };
@@ -83,8 +84,8 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
   // Update local state when context values change (e.g., after loading from database)
   useEffect(() => {
-    console.log("🎛️ [SettingsDialog] useEffect triggered - updating local state with context values");
-    console.log("🎛️ [SettingsDialog] Context values received:", {
+    logger.debug("SettingsDialog", "useEffect triggered - updating local state with context values");
+    logger.debug("SettingsDialog", "Context values received:", {
       assemblyApiKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
       claudeApiKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty",
       selectedDeviceId,
@@ -97,7 +98,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     setLocalMode(refinementConfig.mode);
     setLocalChunkDuration(refinementConfig.chunk_duration_secs);
 
-    console.log("🎛️ [SettingsDialog] Local state updated:", {
+    logger.debug("SettingsDialog", "Local state updated:", {
       localAssemblyKey: assemblyApiKey ? `${assemblyApiKey.slice(0, 10)}...` : "empty",
       localClaudeKey: claudeApiKey ? `${claudeApiKey.slice(0, 10)}...` : "empty"
     });

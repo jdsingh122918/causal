@@ -53,6 +53,7 @@ export function TranscriptionProvider({
   const { selectedDeviceId, assemblyApiKey, claudeApiKey, refinementConfig } = useSettings();
   const { currentProject } = useProjects();
 
+
   // Real-time event handlers for transcription lifecycle
   const handleTranscriptionStarted = useCallback(() => {
     setState((prev) => ({

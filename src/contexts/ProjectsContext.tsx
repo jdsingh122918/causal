@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { Project, CreateProjectRequest, IntelligenceConfig } from "@/lib/types";
 import * as tauri from "@/lib/tauri";
 import { useProjectEvents } from "@/hooks/use-realtime-events";
+import { logger } from "@/utils/logger";
 
 interface ProjectsContextType {
   projects: Project[];
@@ -76,7 +77,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
             setCurrentProject(currentProject);
           })
           .catch((error) => {
-            console.error("Failed to fetch current project:", error);
+            logger.error("Projects", "Failed to fetch current project:", error);
             setCurrentProject(null);
           });
       }
@@ -108,15 +109,54 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       try {
         const currentProject = await tauri.getCurrentProject();
         setCurrentProject(currentProject);
+
+        // If backend has no current project but we have projects, try to restore from localStorage
+        if (!currentProject && projectsList.length > 0) {
+          const lastSelectedProjectId = localStorage.getItem("causal_last_selected_project");
+          if (lastSelectedProjectId) {
+            const lastProject = projectsList.find(p => p.id === lastSelectedProjectId);
+            if (lastProject) {
+              logger.debug("Projects", `Restoring last selected project: ${lastProject.name}`);
+              // Set backend state
+              await tauri.selectProject(lastProject.id);
+              setCurrentProject(lastProject);
+            }
+          }
+        } else if (currentProject) {
+          // Store the current project ID for future restoration
+          localStorage.setItem("causal_last_selected_project", currentProject.id);
+        }
       } catch (error) {
-        // No current project set - expected when no project is selected
+        // No current project set - try to restore from localStorage
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.debug("No current project:", errorMessage);
-        setCurrentProject(null);
+        logger.debug("Projects", "No current project:", errorMessage);
+
+        if (projectsList.length > 0) {
+          const lastSelectedProjectId = localStorage.getItem("causal_last_selected_project");
+          if (lastSelectedProjectId) {
+            const lastProject = projectsList.find(p => p.id === lastSelectedProjectId);
+            if (lastProject) {
+              logger.debug("Projects", `Restoring last selected project after error: ${lastProject.name}`);
+              try {
+                await tauri.selectProject(lastProject.id);
+                setCurrentProject(lastProject);
+              } catch (selectError) {
+                logger.error("Projects", "Failed to restore last selected project:", selectError);
+                setCurrentProject(null);
+              }
+            } else {
+              setCurrentProject(null);
+            }
+          } else {
+            setCurrentProject(null);
+          }
+        } else {
+          setCurrentProject(null);
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to load projects:", errorMessage);
+      logger.error("Projects", "Failed to load projects:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -129,7 +169,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       setProjects(projectsList);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to refresh projects:", errorMessage);
+      logger.error("Projects", "Failed to refresh projects:", errorMessage);
     }
   }, []);
 
@@ -159,7 +199,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       });
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to create project:", errorMessage);
+      logger.error("Projects", "Failed to create project:", errorMessage);
       throw error;
     }
   };
@@ -174,6 +214,9 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
       // Backend call will trigger real-time event for confirmation
       await tauri.selectProject(projectId);
+
+      // Persist to localStorage for restoration after app restart
+      localStorage.setItem("causal_last_selected_project", projectId);
     } catch (error) {
       // Revert optimistic update on error
       try {
@@ -184,7 +227,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       }
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to select project:", errorMessage);
+      logger.error("Projects", "Failed to select project:", errorMessage);
       throw error;
     }
   };
@@ -198,6 +241,11 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
     if (currentProject?.id === projectId) {
       setCurrentProject(null);
+      // Clear from localStorage if this was the last selected project
+      const lastSelectedProjectId = localStorage.getItem("causal_last_selected_project");
+      if (lastSelectedProjectId === projectId) {
+        localStorage.removeItem("causal_last_selected_project");
+      }
     }
 
     try {
@@ -209,7 +257,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       setCurrentProject(originalCurrentProject);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to delete project:", errorMessage);
+      logger.error("Projects", "Failed to delete project:", errorMessage);
       throw error;
     }
   };
@@ -245,7 +293,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Failed to update project intelligence config:", errorMessage);
+      logger.error("Projects", "Failed to update project intelligence config:", errorMessage);
       throw error;
     }
   };
@@ -272,7 +320,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         const hasAllTypes = allAnalysisTypes.every(type => config.analyses.includes(type as any));
 
         if (!hasAllTypes) {
-          console.log(`🔄 Migrating project ${targetProjectId} intelligence config to include all analysis types`);
+          logger.debug("Projects", `Migrating project ${targetProjectId} intelligence config to include all analysis types`);
           const migratedConfig = {
             ...config,
             analyses: allAnalysisTypes as any
@@ -294,7 +342,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         analysisFrequency: "sentence",
       };
     } catch (error) {
-      console.error("Failed to get project intelligence config:", error);
+      logger.error("Projects", "Failed to get project intelligence config:", error);
       return null;
     }
   };

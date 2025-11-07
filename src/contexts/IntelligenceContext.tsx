@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "./SettingsContext";
+import { logger } from "@/utils/logger";
 
 // Intelligence types (matching Rust backend)
 export interface SentimentAnalysis {
@@ -169,7 +170,7 @@ interface IntelligenceContextType {
 }
 
 const defaultConfig: IntelligenceConfig = {
-  enabled_analyses: ["Sentiment", "Financial", "Summary"],
+  enabled_analyses: ["Sentiment", "Financial", "Competitive", "Summary", "Risk"],
   api_key: "",
   model: "claude-haiku-4-5-20251001",
   max_tokens: 4096,
@@ -199,7 +200,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         const config = await invoke<IntelligenceConfig>("get_intelligence_config");
         setState(prev => ({ ...prev, config }));
       } catch (error) {
-        console.warn("Failed to load intelligence config:", error);
+        logger.warn("Intelligence", "Failed to load intelligence config:", error);
       }
 
       try {
@@ -207,7 +208,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         const types = await invoke<AnalysisTypeInfo[]>("get_available_analysis_types");
         setState(prev => ({ ...prev, availableAnalysisTypes: types }));
       } catch (error) {
-        console.error("Failed to load analysis types:", error);
+        logger.error("Intelligence", "Failed to load analysis types:", error);
       }
 
       // Refresh status
@@ -263,7 +264,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           });
         });
       } catch (error) {
-        console.error("Failed to setup intelligence event listener:", error);
+        logger.error("Intelligence", "Failed to setup intelligence event listener:", error);
       }
     };
 
@@ -280,13 +281,13 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const updateApiKeyAndInitialize = async () => {
       if (!claudeApiKey) {
-        console.log("🧠 [Intelligence] No Claude API key available, skipping initialization");
+        logger.debug("Intelligence", "No Claude API key available, skipping initialization");
         return;
       }
 
       // Update config with API key from settings if it's different
       if (state.config.api_key !== claudeApiKey) {
-        console.log("🧠 [Intelligence] Updating API key from settings");
+        logger.debug("Intelligence", "Updating API key from settings");
         setState(prev => ({
           ...prev,
           config: { ...prev.config, api_key: claudeApiKey }
@@ -297,13 +298,13 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           const newConfig = { ...state.config, api_key: claudeApiKey };
           await invoke("set_intelligence_config", { config: newConfig });
         } catch (error) {
-          console.error("Failed to update intelligence config with API key:", error);
+          logger.error("Intelligence", "Failed to update intelligence config with API key:", error);
         }
       }
 
       // Auto-initialize if we have an API key but system is not initialized
       if (claudeApiKey && !state.isInitialized && !state.isProcessing) {
-        console.log("🧠 [Intelligence] Auto-initializing system with API key");
+        logger.debug("Intelligence", "Auto-initializing system with API key");
         try {
           setState(prev => ({ ...prev, isProcessing: true }));
           await invoke("initialize_intelligence_system");
@@ -314,12 +315,12 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
             const status = await invoke<IntelligenceState["systemStatus"]>("get_intelligence_status");
             setState(prev => ({ ...prev, systemStatus: status }));
           } catch (statusError) {
-            console.error("Failed to refresh intelligence status after initialization:", statusError);
+            logger.error("Intelligence", "Failed to refresh intelligence status after initialization:", statusError);
           }
 
-          console.log("🧠 [Intelligence] System initialized successfully");
+          logger.debug("Intelligence", "System initialized successfully");
         } catch (error) {
-          console.error("Failed to auto-initialize intelligence system:", error);
+          logger.error("Intelligence", "Failed to auto-initialize intelligence system:", error);
         } finally {
           setState(prev => ({ ...prev, isProcessing: false }));
         }
@@ -336,7 +337,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       await invoke("set_intelligence_config", { config: newConfig });
       setState(prev => ({ ...prev, config: newConfig }));
     } catch (error) {
-      console.error("Failed to update intelligence config:", error);
+      logger.error("Intelligence", "Failed to update intelligence config:", error);
       throw error;
     }
   }, [state.config]);
@@ -348,7 +349,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       setState(prev => ({ ...prev, isInitialized: true }));
       await refreshStatus();
     } catch (error) {
-      console.error("Failed to initialize intelligence system:", error);
+      logger.error("Intelligence", "Failed to initialize intelligence system:", error);
       throw error;
     } finally {
       setState(prev => ({ ...prev, isProcessing: false }));
@@ -366,7 +367,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       }));
       await refreshStatus();
     } catch (error) {
-      console.error("Failed to clear intelligence system:", error);
+      logger.error("Intelligence", "Failed to clear intelligence system:", error);
       throw error;
     }
   }, []);
@@ -378,7 +379,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       );
       return result;
     } catch (error) {
-      console.error("Intelligence connectivity test failed:", error);
+      logger.error("Intelligence", "Intelligence connectivity test failed:", error);
       throw error;
     }
   }, []);
@@ -398,7 +399,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
       return result;
     } catch (error) {
-      console.error("Failed to analyze text:", error);
+      logger.error("Intelligence", "Failed to analyze text:", error);
       throw error;
     } finally {
       setState(prev => ({ ...prev, isProcessing: false }));
@@ -410,7 +411,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       const status = await invoke<IntelligenceState["systemStatus"]>("get_intelligence_status");
       setState(prev => ({ ...prev, systemStatus: status }));
     } catch (error) {
-      console.error("Failed to refresh intelligence status:", error);
+      logger.error("Intelligence", "Failed to refresh intelligence status:", error);
     }
   }, []);
 
@@ -419,12 +420,12 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       const types = await invoke<AnalysisTypeInfo[]>("get_available_analysis_types");
       setState(prev => ({ ...prev, availableAnalysisTypes: types }));
     } catch (error) {
-      console.error("Failed to get analysis types:", error);
+      logger.error("Intelligence", "Failed to get analysis types:", error);
     }
   }, []);
 
   const clearResults = useCallback(() => {
-    console.log("🧠 [Intelligence] Clearing all intelligence results");
+    logger.debug("Intelligence", "Clearing all intelligence results");
     setState(prev => ({
       ...prev,
       latestResults: new Map(),
